@@ -1,0 +1,23 @@
+local Class = require "class"
+local Board = require "board"
+
+local Game = Class:inherit()
+
+function Game:init()
+	self.actors = {}
+	table.insert(self.actors, Board:new())
+end
+
+function Game:update()
+	for i,actor in pairs(self.actors)do
+		actor:update()
+	end
+end
+
+function Game:draw()
+	for i,actor in pairs(self.actors)do
+		actor:draw()
+	end
+end
+
+return Game
