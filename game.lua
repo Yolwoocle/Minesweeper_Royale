@@ -20,4 +20,10 @@ function Game:draw()
 	end
 end
 
+function Game:mousepressed(x, y, button)
+	for i,actor in pairs(self.actors)do
+		if actor.mousepressed then  actor:mousepressed(x, y, button)  end
+	end
+end
+
 return Game
