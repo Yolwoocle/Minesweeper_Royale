@@ -39,12 +39,19 @@ function Tile:draw(board, x, y, tile_size, is_select)
 		self.show_number = false
 	end
 
-
 	if is_select then col = lighten_color(col, .4)  end
 
+	-- Draw rectangle
 	love.graphics.setColor(col)
 	love.graphics.rectangle("fill", x, y, tile_size, tile_size)
 	love.graphics.setColor(1,1,1)
+	-- Show bomb
+	if is_revealed_bomb then
+		local ccol = lighten_color(col, -.2)
+		local o = tile_size/2
+		love.graphics.setColor(ccol)
+		love.graphics.circle("fill", x+o, y+o, tile_size*.25)	
+	end
 
 	-- Show number if exposed
 	if self.show_number then 
@@ -56,6 +63,7 @@ function Tile:draw(board, x, y, tile_size, is_select)
 	if self.is_flagged then
 		love.graphics.draw(img.flag, x, y)
 	end
+	love.graphics.setColor(1,1,1)
 end
 
 function Tile:set_val(val) 
