@@ -14,11 +14,11 @@ function Board:init()
 	self.number_of_mines = 30
 
 	self.is_generated = false
-
+	self.game_over = false
 	self.board = {}
-	for iy=0,self.h-1 do
+	for iy=0, self.h-1 do
 		self.board[iy] = {}
-		for ix=0,self.w-1 do
+		for ix=0, self.w-1 do
 			self.board[iy][ix] = Tile:new(ix,iy,0)
 		end
 	end
@@ -35,15 +35,18 @@ function Board:mousepressed(x, y, button)
 	local tx, ty, isclicked, is_valid = self:get_selected_tile()
 	if is_valid then 
 		if button == 1 then
+			
 			if self.is_generated then
 				self:reveal_tile(tx, ty)
-			else -- If the board is not generated
+			else -- If the board is not generated yet
 				self:generate_board(tx, ty)
 			end
+
 		elseif button == 2 then
 			self:toggle_flag(tx, ty)
 		end
 	end
+
 end
 
 function Board:draw()
@@ -89,8 +92,15 @@ end
 function Board:reveal_tile(x, y)
 	local tile = self.board[y][x]
 	tile.is_hidden = false
-	if tile.val == 0 then
+
+	if tile.val == 0 then 
+		-- Recursively clear tiles around if it's empty
 		self:recursive_reveal_board(x,y)
+	end
+
+	-- Game overs if it's a mine
+	if tile.is_mine then
+		self.game_over = true
 	end
 end
 
@@ -108,7 +118,6 @@ function Board:generate_board(start_x, start_y)
 	self.is_generated = true
 
 	-- Generate a list of random mines
-	local mines = {}
 	local i = self.number_of_mines
 	local iters = i*3
 	while i > 0 and iters > 0 do
