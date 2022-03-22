@@ -35,7 +35,7 @@ function Board:update()
 			self.game_over = true
 		end
 	end
-	print(self.game_over)
+
 end
 
 function Board:draw()
