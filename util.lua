@@ -9,3 +9,7 @@ function lighten_color(col, v)
 	end
 	return ncol
 end
+
+function rgb(r,g,b)
+	return {r/255, g/255, b/255}
+end

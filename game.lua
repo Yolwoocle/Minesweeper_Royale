@@ -15,6 +15,8 @@ function Game:update()
 end
 
 function Game:draw()
+	local a = .1
+	love.graphics.clear(a,a,a)
 	for i,actor in pairs(self.actors)do
 		actor:draw()
 	end

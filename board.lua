@@ -1,6 +1,7 @@
 require "util"
 local Class = require "class"
 local Tile = require "tile"
+local img = require "images"
 
 local Board = Class:inherit()
 function Board:init()
@@ -15,21 +16,32 @@ function Board:init()
 	self.is_generated = false
 
 	self.board = {}
-	for i=0,self.h-1 do
-		self.board[i] = {}
-		for j=0,self.w-1 do
-			self.board[i][j] = Tile:new(0)
+	for iy=0,self.h-1 do
+		self.board[iy] = {}
+		for ix=0,self.w-1 do
+			self.board[iy][ix] = Tile:new(ix,iy,0)
 		end
 	end
 end
 
 function Board:update()
-	local tx, ty, isclicked = self:get_selected_tile()
-	if isclicked then 
-		if self.is_generated then
-			
-		else -- If the board is not generated
-			self:generate_board(tx, ty)
+	local tx, ty, isclicked, is_valid = self:get_selected_tile()
+	if isclicked and is_valid then 
+
+	end
+end
+
+function Board:mousepressed(x, y, button)
+	local tx, ty, isclicked, is_valid = self:get_selected_tile()
+	if is_valid then 
+		if button == 1 then
+			if self.is_generated then
+				self:reveal_tile(tx, ty)
+			else -- If the board is not generated
+				self:generate_board(tx, ty)
+			end
+		elseif button == 2 then
+			self:toggle_flag(tx, ty)
 		end
 	end
 end
@@ -40,28 +52,11 @@ function Board:draw()
 	for iy=0,self.h-1 do
 		for ix=0,self.w-1 do
 			local tile = self.board[iy][ix]
-			local tile_val = tile.val
 			
-			-- Color
-			local col = {0,0,0}
-			if tile.is_hidden then 
-				col = {0, 1, 0}
-			else
-				if tile.is_mine then                col = {1, 0, 0}  end
-			end
-			-- Lighter color
-			if (ix+iy)%2==0 then col = lighten_color(col, .2) end 
-			if ix == hov_x and iy == hov_y then col = lighten_color(col, .4)  end
-
 			local x = self.x + ix * self.tile_size 
 			local y = self.y + iy * self.tile_size
 
-			love.graphics.setColor(col)
-			love.graphics.rectangle("fill", x, y, self.tile_size, self.tile_size)
-			love.graphics.setColor(1,1,1)
-			if tile_val > 0 and not tile.is_hidden then 
-				love.graphics.print(tostring(tile_val), x, y)
-			end
+			tile:draw(x, y, self.tile_size, ix == hov_x and iy == hov_y)
 		end
 	end
 end
@@ -70,6 +65,43 @@ function Board:get_tile(x, y)
 	if self:is_valid_coordinate(x, y)then
 		return self.board[y][x]		
 	end
+end
+
+function Board:set_tile_val(x, y, v)
+	if self:is_valid_coordinate(x, y) then
+		self.board[y][x].val = v		
+	end
+end
+
+function Board:get_selected_tile()
+	local isclicked = love.mouse.isDown(1)
+	
+	local mx, my = love.mouse.getPosition()
+	local tx = math.floor((mx-self.x) / self.tile_size)
+	local ty = math.floor((my-self.y) / self.tile_size)
+	if self:is_valid_coordinate(tx, ty) then
+		return tx, ty, isclicked, true
+	else
+		return nil, nil, isclicked, false
+	end
+end
+
+function Board:reveal_tile(x, y)
+	local tile = self.board[y][x]
+	tile.is_hidden = false
+	if tile.val == 0 then
+		self:recursive_reveal_board(x,y)
+	end
+end
+
+function Board:toggle_flag(x, y)
+	self.board[y][x].is_flagged = not self.board[y][x].is_flagged
+end
+function Board:set_flag(x, y, v)
+	self.board[y][x].is_flagged = v
+end
+function Board:get_flag(x, y, v)
+	return self.board[y][x].is_flagged
 end
 
 function Board:generate_board(start_x, start_y)
@@ -85,24 +117,18 @@ function Board:generate_board(start_x, start_y)
 		local y = love.math.random(0,self.h-1)
 
 		-- If valid, update tiles around it
-		if self.board[y][x] ~= math.huge then
+		if not self.board[y][x].is_mine then
 			-- Place mine
 			local is_start_x = is_between(x, start_x-1, start_x+1) 
 			local is_start_y = is_between(y, start_y-1, start_y+1)
 			local not_at_start_zone = not (is_start_x and is_start_y)
 			if not_at_start_zone then
+
 				self.board[y][x].is_mine = true
+				self:update_adjacent_tiles(x, y)
+				i = i - 1
 			end
 			
-			-- Update adjacent tiles
-			for oy=-1,1 do
-				for ox=-1,1 do
-					if self:is_valid_coordinate(x+ox, y+oy) then
-						self.board[y+oy][x+ox].val = self.board[y+oy][x+ox].val + 1
-					end
-				end
-			end
-			i = i - 1
 		end
 		iters = iters - 1
 	end
@@ -110,16 +136,13 @@ function Board:generate_board(start_x, start_y)
 	self:recursive_reveal_board(start_x, start_y)
 end
 
-function Board:get_selected_tile()
-	local isclicked = love.mouse.isDown(1)
-	
-	local mx, my = love.mouse.getPosition()
-	local tx = math.floor((mx-self.x) / self.tile_size)
-	local ty = math.floor((my-self.y) / self.tile_size)
-	if self:is_valid_coordinate(tx, ty) then
-		return tx, ty, isclicked
-	else
-		return nil, nil, isclicked
+function Board:update_adjacent_tiles(x, y)
+	for oy=-1,1 do
+		for ox=-1,1 do
+			if self:is_valid_coordinate(x+ox, y+oy) then
+				self.board[y+oy][x+ox].val = self.board[y+oy][x+ox].val + 1
+			end
+		end
 	end
 end
 
