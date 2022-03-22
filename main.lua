@@ -4,7 +4,8 @@ local Board = require "board"
 
 local game = Game:new()
 function love.load()
-		
+	local font_regular = love.graphics.newFont("fonts/Poppins-Regular.ttf", 24)
+	love.graphics.setFont(font_regular)
 end
 
 function love.update()
