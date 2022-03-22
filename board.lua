@@ -12,8 +12,10 @@ function Board:init()
 	self.number_of_mines = 30
 
 	self.is_generated = false
-
+	self.game_over = false
 	self.board = {}
+
+	--creation d'un tableau
 	for i=0,self.h-1 do
 		self.board[i] = {}
 		for j=0,self.w-1 do
@@ -27,6 +29,13 @@ function Board:update()
 	if isclicked and not self.is_generated then
 		self:generate_board(tx, ty)
 	end
+-- vérifie si la case existe puis regarde en cas de clique si il y a une bombe --
+	if self:is_valid_coordinate(tx,ty) then
+		if isclicked and self.board[ty][tx] == math.huge then
+			self.game_over = true
+		end
+	end
+	print(self.game_over)
 end
 
 function Board:draw()
@@ -67,7 +76,6 @@ function Board:generate_board(start_x, start_y)
 	self.is_generated = true
 
 	-- Generate a list of random mines
-	local mines = {}
 	local i = self.number_of_mines
 	local iters = i*3
 	while i > 0 and iters > 0 do
