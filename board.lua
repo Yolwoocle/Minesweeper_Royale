@@ -4,12 +4,14 @@ local Tile = require "tile"
 local img = require "images"
 
 local Board = Class:inherit()
-function Board:init()
+function Board:init(seed)
 	-- Parameters
-	self.w = 19
-	self.h = 14
-	self.tile_size = 16--32
-	self.number_of_bombs = 30
+	self.w = 10
+	self.h = 8
+	--self.w = 19
+	--self.h = 14
+	self.tile_size = 32
+	self.number_of_bombs = 40
 
 	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
 	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
@@ -18,6 +20,8 @@ function Board:init()
 
 	self.is_generated = false
 	self.game_over = false
+	self.is_win = false
+
 	self.board = {}
 	for iy=0, self.h-1 do
 		self.board[iy] = {}
@@ -25,6 +29,8 @@ function Board:init()
 			self.board[iy][ix] = Tile:new(ix,iy,0)
 		end
 	end
+	-- Initialize seed with random value
+	self.seed = seed or love.math.random(-10000, 10000)
 
 	self.numbers_palette = {
 		[0] = rgb(0,0,0),
@@ -63,9 +69,7 @@ function Board:mousepressed(x, y, button)
 end
 
 function Board:on_button1(tx, ty, is_valid)
-	print("Board:on_button1")
 	if self.network then
-		print("Calling network...")
 		if self.network.on_button1 then
 			self.network:on_button1(tx, ty, is_valid)
 		end
@@ -78,7 +82,7 @@ function Board:on_button1(tx, ty, is_valid)
 				self:reveal_tile(tx, ty)
 			end
 		else -- If the board is not generated yet
-			self:generate_board(tx, ty)
+			self:generate_board(tx, ty, self.seed)
 		end
 		-- vérifie si la case existe puis regarde en cas de clique si il y a une bombe --
 
@@ -162,13 +166,42 @@ function Board:get_flag(x, y)
 	return self.board[y][x]:get_flag()
 end
 
+function Board:reset_board()
+	for x=0,self.w-1 do
+		for y=0,self.h-1 do
+			self.board[y][x].val = 0
+			self.board[y][x]:set_hidden(true)
+			self.board[y][x]:set_bomb(false)
+			self.board[y][x]:set_flag(false)
+		end
+	end
+end
+
+function Board:is_winning()
+	local number_of_correct_flags = 0
+	for ix=0, self.w-1 do
+		for iy=0, self.h-1 do
+			local tile = self:get_tile(ix,iy)
+			if tile.is_bomb and tile.is_flagged then
+				number_of_correct_flags = number_of_correct_flags + 1
+			end
+		end
+	end
+	local is_win = number_of_correct_flags == self.number_of_bombs
+	self.is_win = is_win
+	return is_win
+end
+
 function Board:generate_board(start_x, start_y, seed)
-	seed = 3--seed or love.math.random(-12000, 12000)
+	seed = seed or self.seed
 	local rng = love.math.newRandomGenerator(seed)
 	self.is_generated = true
 
+	self:reset_board()
+
 	-- Generate a list of random bombs
 	local i = self.number_of_bombs
+	self.number_of_bombs = 0
 	local iters = i*3
 	while i > 0 and iters > 0 do
 		-- Attempt a random pair of coordinates
@@ -184,12 +217,12 @@ function Board:generate_board(start_x, start_y, seed)
 			if not_at_start_zone then
 
 				self.board[y][x]:set_bomb(true)
+				self.number_of_bombs = self.number_of_bombs + 1
 				self.board[y][x]:set_bomb_color(self:get_random_bomb_color())
 				self:update_adjacent_tiles(x, y)
 				i = i - 1
 
 			end
-			
 		end
 		iters = iters - 1
 	end
@@ -243,6 +276,10 @@ end
 function Board:get_random_bomb_color()
 	local r = love.math.random(1, #self.bomb_colors)
 	return self.bomb_colors[r]
+end
+
+function Board:set_bomb(val, x, y)
+	self.board[y][x].is_bomb = val
 end
 
 return Board

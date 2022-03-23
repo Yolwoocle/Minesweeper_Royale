@@ -17,7 +17,7 @@ end
 function draw_centered_text(text, rect_x, rect_y, rect_w, rect_h)
 	local font   = love.graphics.getFont()
 	local text_w = font:getWidth(text)
-	local text_h = font:getHeight()
+	local text_h = font:getHeight(text)
 	love.graphics.print(text, rect_x+rect_w/2, rect_y+rect_h/2, 0, 1, 1, text_w/2, text_h/2)
 end
 
