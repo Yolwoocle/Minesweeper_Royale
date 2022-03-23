@@ -36,8 +36,10 @@ function Board:update()
 	end
 -- vérifie si la case existe puis regarde en cas de clique si il y a une bombe --
 	if self:is_valid_coordinate(tx,ty) then
+		print(self.board[ty][tx].val)
 		if isclicked and self.board[ty][tx] == math.huge then
 			self.game_over = true
+			print('hi')
 		end
 	end
 
