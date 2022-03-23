@@ -64,17 +64,27 @@ function Board:on_button1(tx, ty, is_valid)
 	if is_valid  and not self:get_tile(tx,ty):get_flag() then
 		
 		if self.is_generated then
-			self:reveal_tile(tx, ty)
+			if not self.game_over then
+				self:reveal_tile(tx, ty)
+			end
 		else -- If the board is not generated yet
 			self:generate_board(tx, ty)
 		end
+		-- vérifie si la case existe puis regarde en cas de clique si il y a une bombe --
+
+		if isclicked and self.board[ty][tx].is_bomb then
+			self.game_over = true
+
+		end
 	end
+
 end
 
 function Board:on_button2(tx, ty, is_valid)
 	if is_valid then
 		self:toggle_flag(tx, ty)
 	end
+
 end
 
 function Board:draw()
