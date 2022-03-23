@@ -4,10 +4,10 @@ local NetworkManager = require "network"
 
 local Game = Class:inherit()
 
+--Guigui load font changer si possible pin
+local font_regular = love.graphics.newFont("fonts/Poppins-Regular.ttf", 24)
 
 function Game:init()
-	--Guigui load font changer si possible pin
-	local font_regular = love.graphics.newFont("fonts/Poppins-Regular.ttf", 24)
 	love.graphics.setFont(font_regular)
 	
 	self.actors = {}
