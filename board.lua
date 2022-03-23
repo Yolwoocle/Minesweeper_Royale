@@ -74,7 +74,7 @@ function Board:on_button1(tx, ty, is_valid)
 
 		if isclicked and self.board[ty][tx].is_bomb then
 			self.game_over = true
-			print('hi')
+
 		end
 	end
 
