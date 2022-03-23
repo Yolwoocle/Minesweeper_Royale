@@ -47,7 +47,7 @@ function Board:init()
 	}
 end
 
-function Board:update()
+function Board:update(dt)
 	local tx, ty, isclicked, is_valid = self:get_selected_tile()
 	if isclicked and is_valid then 
 
@@ -142,7 +142,9 @@ function Board:get_flag(x, y)
 	return self.board[y][x]:get_flag()
 end
 
-function Board:generate_board(start_x, start_y)
+function Board:generate_board(start_x, start_y, seed)
+	seed = 3--seed or love.math.random(-12000, 12000)
+	local rng = love.math.newRandomGenerator(seed)
 	self.is_generated = true
 
 	-- Generate a list of random bombs
@@ -150,8 +152,8 @@ function Board:generate_board(start_x, start_y)
 	local iters = i*3
 	while i > 0 and iters > 0 do
 		-- Attempt a random pair of coordinates
-		local x = love.math.random(0,self.w-1)
-		local y = love.math.random(0,self.h-1)
+		local x = rng:random(0,self.w-1)
+		local y = rng:random(0,self.h-1)
 
 		-- If valid, update tiles around it
 		if not self.board[y][x].is_bomb then

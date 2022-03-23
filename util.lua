@@ -20,3 +20,12 @@ function draw_centered_text(text, rect_x, rect_y, rect_w, rect_h)
 	local text_h = font:getHeight()
 	love.graphics.print(text, rect_x+rect_w/2, rect_y+rect_h/2, 0, 1, 1, text_w/2, text_h/2)
 end
+
+function concat(...)
+	local args = {...}
+	local s = ""
+	for _,v in pairs(args) do
+		s = s..tostring(v)
+	end
+	return s
+end

@@ -1,6 +1,7 @@
 local Class = require "class"
 local Game = require "game"
 local Board = require "board"
+local NetworkManager = require "network"
 
 -- Global parameters
 WINDOW_WIDTH = 800
@@ -16,8 +17,8 @@ function love.load()
 	love.graphics.setFont(font_regular)
 end
 
-function love.update()
-	game:update()
+function love.update(dt)
+	game:update(dt)
 end
 
 function love.draw()

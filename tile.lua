@@ -16,7 +16,8 @@ end
 function Tile:draw(board, x, y, tile_size, is_select)
 	self.show_number = false
 
-	local col = {0,0,0}
+	-- Deafult non-hidden color
+	local col = rgb(25,25,25)
 	-- Hidden when color
 	if self.is_hidden then 
 		col = rgb(100, 200, 77)
@@ -24,10 +25,10 @@ function Tile:draw(board, x, y, tile_size, is_select)
 
 	-- Lighter color every 2 tiles
 	if ((self.ix + self.iy)%2 == 0) then 
-		col = lighten_color(col, .2) 
+		col = lighten_color(col, .1) 
 	end 
 	
-	-- Shown number if number is 1,2,3...
+	-- Show number if number is 1,2,3...
 	if self.val > 0 and not self.is_hidden then
 		self.show_number = true
 	end
