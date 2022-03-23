@@ -3,7 +3,7 @@ local Class = require "class"
 
 local Client = Class:inherit()
 function Client:init()
-	print('CLIENT SAYZ HELLO CHEZBURGER')
+	print("Client started")
 
 	self.address = "localhost"
 	self.port = 12345
@@ -16,7 +16,9 @@ function Client:init()
 	self.udp:settimeout(0)
 	self.udp:setpeername(self.address, self.port)
 	
-	local dg = "I'm ready! :D"
+	self.msg = ""
+
+	local dg = "join"
 	self.udp:send(dg) 
 	
 	self.t = 0 
@@ -25,18 +27,19 @@ function Client:update(dt)
 	self.t = self.t + dt 
 
 	if self.t > self.updaterate then
-		local msg = "waiting"
-		if love.keyboard.isDown('up') then 	
-			msg = "did a thing"--..tostring(love.math.random(1,100)) 
+		local msg 
+		if self.state ~= "" then
+			-- If breaking a tile
+			if self.state == "break" then
+				msg = "break "..self.state_args
+			end
+			self.state = ""	
 		end
-
+	
 		-- Send the packet
-		local dg = msg
-		self.udp:send(dg)	
-
-		-- Request world update
-		local dg = "PLZ UPDATE"
-		self.udp:send(dg)
+		if msg then
+			self.udp:send(msg)	
+		end
 		
 		-- Set t for the next round
 		self.t = self.t - self.updaterate 
@@ -64,6 +67,12 @@ function Client:update(dt)
 			error("Network error: "..tostring(msg))
 		end
 	until not data 
+end
+
+function Client:on_button1(tx, ty, is_valid)
+	print("Client:on_button1(",tx,ty,is_valid,")")
+	self.state = "break"
+	self.state_args = concat(tx," ",ty," ",bool_to_int(is_valid))
 end
 
 return Client

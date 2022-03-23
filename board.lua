@@ -8,11 +8,13 @@ function Board:init()
 	-- Parameters
 	self.w = 19
 	self.h = 14
-	self.tile_size = 32
+	self.tile_size = 16--32
 	self.number_of_bombs = 30
 
 	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
 	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
+
+	self.network = nil
 
 	self.is_generated = false
 	self.game_over = false
@@ -61,7 +63,15 @@ function Board:mousepressed(x, y, button)
 end
 
 function Board:on_button1(tx, ty, is_valid)
-	if is_valid  and not self:get_tile(tx,ty):get_flag() then
+	print("Board:on_button1")
+	if self.network then
+		print("Calling network...")
+		if self.network.on_button1 then
+			self.network:on_button1(tx, ty, is_valid)
+		end
+	end
+	
+	if is_valid and not self:get_tile(tx,ty):get_flag() then
 		
 		if self.is_generated then
 			if not self.game_over then

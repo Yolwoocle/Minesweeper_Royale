@@ -3,8 +3,9 @@ local Class = require "class"
 
 local Server = Class:inherit()
 
-function Server:init()
-	-- begin
+function Server:init(game)
+	self.game = game
+
 	self.udp = socket.udp()
 	self.udp:settimeout(0)
 
@@ -12,6 +13,8 @@ function Server:init()
 
 	self.num = 100
 	self.running = true
+
+	self.clients = {}
 	
 	print "Beginning server loop."
 end
@@ -24,16 +27,27 @@ function Server:update(dt)
 		data, msg_or_ip, port_or_nil = self.udp:receivefrom()
 		if data then
 			print(concat('Recieved client data:', data, "; from:", msg_or_ip, ":", port_or_nil))
-			cmd = data---data:match("^(%S+) (%d+)")
-			if cmd == "waiting" then
-				print("client isn't doing anything")
+			local cmd, parms = data:match("^(%S+) (.*)")
 			
-			elseif cmd == "did a thing" then
-				print("OMG CLIENT DID A THING")
-				self.num = self.num + 1
+			if cmd == "join" then
+				local new_id = #self.clients + 1
+				self.clients[new_id] = {
+					id = new_id,
+					name = "user_n°"..tostring(new_id),
+					ip = msg_or_ip,
+					port = port_or_nil,
+				}
+				print(concat("Client joined, assigned ID :",new_id))
+			
+			elseif cmd == "break" then
+				-- Client breaks tile
+				local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
+				tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
+				self.game:on_button1(tx, ty, is_valid)
+				print("client broke a tile")
 
 			elseif cmd == "PLZ UPDATE" then
-				print("client asked for update: *sends number*")
+				print("client asked for update: sending number")
 				local cmd = concat("number ", self.num)
 				self.udp:sendto(cmd, msg_or_ip,  port_or_nil)
 

@@ -29,3 +29,10 @@ function concat(...)
 	end
 	return s
 end
+
+function bool_to_int(b)
+	if b then
+		return 1
+	end
+	return 0
+end

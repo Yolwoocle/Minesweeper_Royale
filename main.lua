@@ -4,8 +4,8 @@ local Board = require "board"
 local NetworkManager = require "network"
 
 -- Global parameters
-WINDOW_WIDTH = 800
-WINDOW_HEIGHT = 600
+WINDOW_WIDTH = 400--800
+WINDOW_HEIGHT = 300--600
 
 local game = Game:new()
 
