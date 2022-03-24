@@ -8,8 +8,8 @@ function Board:init(seed)
 	-- Parameters
 	self.w = 10
 	self.h = 8
-	--self.w = 19
-	--self.h = 14
+	self.w = 19
+	self.h = 14
 	self.tile_size = 32
 	self.number_of_bombs = 40
 
@@ -75,7 +75,7 @@ function Board:on_button1(tx, ty, is_valid)
 		end
 	end
 	
-	if is_valid and not self:get_tile(tx,ty):get_flag() then
+	if is_valid and not self:get_board(tx,ty):get_flag() then
 		
 		if self.is_generated then
 			if not self.game_over then
@@ -86,7 +86,7 @@ function Board:on_button1(tx, ty, is_valid)
 		end
 		-- vérifie si la case existe puis regarde en cas de clique si il y a une bombe --
 
-		if isclicked and self.board[ty][tx].is_bomb then
+		if isclicked and self.get_board(tx, ty).is_bomb then
 			self.game_over = true
 
 		end
@@ -116,13 +116,13 @@ function Board:draw()
 	end
 end
 
-function Board:get_tile(x, y)
+function Board:get_board(x, y)
 	if self:is_valid_coordinate(x, y)then
 		return self.board[y][x]		
 	end
 end
 
-function Board:set_tile_val(x, y, v)
+function Board:set_board_val(x, y, v)
 	if self:is_valid_coordinate(x, y) then
 		self.board[y][x]:set_val(v)		
 	end
@@ -181,7 +181,7 @@ function Board:is_winning()
 	local number_of_correct_flags = 0
 	for ix=0, self.w-1 do
 		for iy=0, self.h-1 do
-			local tile = self:get_tile(ix,iy)
+			local tile = self:get_board(ix,iy)
 			if tile.is_bomb and tile.is_flagged then
 				number_of_correct_flags = number_of_correct_flags + 1
 			end
