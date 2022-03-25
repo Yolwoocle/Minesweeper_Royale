@@ -17,6 +17,7 @@ end
 function Client:init_socket()
 	print("Client started")
 	self.address = self:read_serverip("localhost")
+	print(concat("Connected to ", self.address))
 	self.port = 12345
 
 	-- How long to wait, in seconds, before requesting an update
@@ -142,7 +143,7 @@ function Client:read_serverip(default)
 end
 
 function Client:quit()
-	self.udp:send("leave 123")
+	self.udp:send("leave "..self.name)
 end
 
 function Client:draw_game_over()
