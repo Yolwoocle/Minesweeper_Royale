@@ -5,7 +5,7 @@ local font = require "font"
 
 local Client = Class:inherit()
 function Client:init()
-	self.is_waiting = false
+	self.is_waiting = true
 	self.is_win = false
 	self.board = Board:new()
 	self.name = self:get_name()
@@ -17,27 +17,34 @@ end
 function Client:init_socket()
 	print("Client started")
 	self.address = self:read_serverip("localhost")
-	print(concat("Connected to ", self.address))
 	self.port = 12345
+	print("Set address and port "..self.address..":"..tostring(self.port))
 
 	-- How long to wait, in seconds, before requesting an update
 	self.updaterate = 0.1 
 
+	print("Attempting connection to server")
 	self.udp = socket.udp()
 	self.udp:settimeout(0)
 	self.udp:setpeername(self.address, self.port)
 	self.msg = ""
 
+	print("Joining server...")
 	local dg = "join "..tostring(self.name)
 	self.udp:send(dg)
 	
+	self.message_queue = {}
 	self.t = 0 
 end
 
 function Client:update(dt)
-	self.board:update(dt)
-	if self.board:is_winning() then
-		self.is_win = true
+	if self.is_waiting then
+
+	else
+		self.board:update(dt)
+		if self.board:is_winning() then
+			self.is_win = true
+		end
 	end
 
 	self:update_socket(dt)
@@ -47,6 +54,13 @@ function Client:draw()
 	self.board:draw()
 	if self.board.game_over then
 		self:draw_game_over()
+	end
+
+	if self.is_waiting then
+		love.graphics.setColor(0,0,0, .6)
+		love.graphics.rectangle("fill",0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
+		love.graphics.setColor(1,1,1)
+		draw_centered_text("En attente du serveur...",0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
 	end
 end
 
@@ -63,37 +77,38 @@ function Client:on_button1(tx, ty, is_valid)
 	if self.board.on_button1 then  self.board:on_button1(tx, ty, is_valid)  end
 
 	-- Prepare network package for later
-	self.state = "break"
-	self.state_args = concat(tx," ",ty," ",bool_to_int(is_valid))
+	table.insert(self.message_queue, {
+		"break", concat(tx," ",ty," ",bool_to_int(is_valid)),
+	})
 end
 
 function Client:on_button2(tx, ty, is_valid)
 	if self.board.on_button2 then  self.board:on_button2(tx, ty, is_valid)  end
 
-	self.state = "flag"
-	self.state_args = concat(tx," ",ty," ",bool_to_int(is_valid))
+	-- Prepare network package for later
+	table.insert(self.message_queue, {
+		"flag", concat(tx," ",ty," ",bool_to_int(is_valid))
+	})
 end
 
 function Client:update_socket(dt)
 	self.t = self.t + dt 
 	if self.t > self.updaterate then
 		local msg 
-		if self.state ~= "" then
-			-- If breaking a tile
-			if self.state == "break" then
-				msg = "break "..self.state_args
-				
-			elseif self.state == "flag" then
-				msg = "flag "..self.state_args
-			
-			end
-			self.state = ""	
+		if #self.message_queue > 0 then
+			local q = self.message_queue[1]
+			msg = tostring(q[1]).." "..tostring(q[2])
+			table.remove(self.message_queue, 1)
 		end
 	
 		-- Send the packet
 		if msg then
 			self.udp:send(msg)	
 		end
+
+		-- Request for update
+		local dg = "update 123"
+		self.udp:send(dg)
 		
 		-- Set t for the next round
 		self.t = self.t - self.updaterate 
@@ -113,11 +128,16 @@ function Client:update_socket(dt)
 
 			if cmd == 'assignid' then
 				self.id = tonumber(parms)
+				notification("Established connection with server :D")
 
 			elseif cmd == "assignseed" then
 				local seed = parms:match("^(%-?[%d.e]*)$")
 				seed = tonumber(seed)
 				self.board.seed = seed
+
+			elseif cmd == "begingame" then
+				self.is_waiting = false
+				print("Server began game")
 
 			else
 				print("Unrecognised server command:", cmd)

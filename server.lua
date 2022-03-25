@@ -15,12 +15,16 @@ function Server:init()
 	self.number_of_clients = 0
 	self.clients = {}
 
+	self.message_queue = {}
+
 	local b = Board:new()
 	self.board_w = b.w
 	self.board_h = b.h
 	self.tile_size = b.tile_size
 
 	self.seed = love.math.random(-10000, 10000)
+
+	self.game_begin = false
 
 	print "Beginning server loop."
 end
@@ -50,7 +54,7 @@ function Server:update(dt)
 					ip = msg_or_ip,
 					port = port_or_nil,
 				}
-				print(concat("Client joined, assigned ID :",new_id))
+				print(concat("Client joined, assigned ID :\"",new_id, "\" with name: \"",name,"\""))
 				-- Notify the client with its new ID
 				self.udp:sendto(concat("assignid ",new_id), msg_or_ip, port_or_nil)
 				self.udp:sendto(concat("assignseed ",self.seed), msg_or_ip, port_or_nil)
@@ -77,6 +81,14 @@ function Server:update(dt)
 			elseif cmd == "ping" then
 				self.udp:sendto("pong!", msg_or_ip,  port_or_nil)
 
+			elseif cmd == "update" then
+				if #self.message_queue > 0 then
+					-- Send messages in message queue
+					local msg = self.message_queue[1]
+					self.udp:sendto(tostring(msg[1]).." "..tostring(msg[2]), msg_or_ip,  port_or_nil)
+					table.remove(self.message_queue, 1)
+				end
+
 			elseif cmd == 'leave' then
 				-- User leaves
 				local id = parms:match("^(%-?[%d.e]*)")
@@ -94,6 +106,7 @@ function Server:update(dt)
 			error("Unknown network error: "..tostring(msg))
 		end
 		
+
 		socket.sleep(0.01)
 	end
 end
@@ -150,7 +163,28 @@ function Server:draw()
 		--love.graphics.print(concat(self.number_of_clients," clients connected"), 5,5)
 	else
 		draw_centered_text("Aucun client :(", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
-	end	
+	end
+	
+	if not self.game_begin then
+		-- Waiting for game start
+		local w,h = WINDOW_WIDTH, 64
+		local x,y = (WINDOW_WIDTH-w)/2, 64
+		love.graphics.setColor(0,0,0,.7)
+		love.graphics.rectangle("fill",x,y,w,h)
+		love.graphics.setColor(1,1,1)
+		local s = self.number_of_clients<=1 and "" or "s"
+		local txt = concat(self.number_of_clients," joueur",s," connecté",s,". Appuyez sur 'S' pour démarrer la partie.")
+		draw_centered_text(txt, x,y,w,h)
+	end
+end
+
+function Server:keypressed(key)
+	if key == "s" then
+		self.game_begin = true
+		table.insert(self.message_queue, {
+			"begingame","123"
+		})
+	end
 end
 
 function Server:stop()

@@ -49,6 +49,7 @@ function Game:on_button2()
 end
 
 function Game:keypressed(key)
+	if self.interface.keypressed then  self.interface:keypressed(key)  end
 	if key == "f3" then
 		self.debugmode = not self.debugmode
 	end
