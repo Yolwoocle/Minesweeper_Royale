@@ -14,11 +14,24 @@ function rgb(r,g,b)
 	return {r/255, g/255, b/255}
 end
 
-function draw_centered_text(text, rect_x, rect_y, rect_w, rect_h)
+function draw_centered_text(text, rect_x, rect_y, rect_w, rect_h, rot, sx, sy)
+	rot = rot or 0
+	sx = sx or 1
+	sy = sy or sx
 	local font   = love.graphics.getFont()
 	local text_w = font:getWidth(text)
 	local text_h = font:getHeight(text)
-	love.graphics.print(text, rect_x+rect_w/2, rect_y+rect_h/2, 0, 1, 1, text_w/2, text_h/2)
+	love.graphics.print(text, rect_x+rect_w/2, rect_y+rect_h/2, rot, sx, sy, text_w/2, text_h/2)
+end
+
+function print_centered(text, x, y, rot, sx, sy)
+	rot = rot or 0
+	sx = sx or 1
+	sy = sy or sx
+	local font   = love.graphics.getFont()
+	local text_w = font:getWidth(text)
+	local text_h = font:getHeight(text)
+	love.graphics.print(text, x-text_w/2, y-text_h/2, rot, sx, sy)
 end
 
 function concat(...)

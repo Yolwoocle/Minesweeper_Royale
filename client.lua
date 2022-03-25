@@ -8,6 +8,7 @@ function Client:init()
 	self.is_waiting = false
 	self.is_win = false
 	self.board = Board:new()
+	self.name = self:get_name()
 
 	-- Networking
 	self:init_socket()
@@ -15,7 +16,7 @@ end
 
 function Client:init_socket()
 	print("Client started")
-	self.address = "localhost"
+	self.address = self:read_serverip("localhost")
 	self.port = 12345
 
 	-- How long to wait, in seconds, before requesting an update
@@ -26,7 +27,7 @@ function Client:init_socket()
 	self.udp:setpeername(self.address, self.port)
 	self.msg = ""
 
-	local dg = "join 123"
+	local dg = "join "..tostring(self.name)
 	self.udp:send(dg)
 	
 	self.t = 0 
@@ -128,6 +129,18 @@ function Client:update_socket(dt)
 	until not data 
 end
 
+function Client:read_serverip(default)
+	local contents, size = love.filesystem.read("serverip.txt")
+	if contents then
+		print(contents)
+		return contents
+	else
+		local error = size
+		notification(error)
+		return default
+	end
+end
+
 function Client:quit()
 	self.udp:send("leave 123")
 end
@@ -171,6 +184,19 @@ function Client:draw_winning()
 	text_width = font.regular:getWidth(text)
 	text_height = font.regular:getHeight(text)
 	love.graphics.print(text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2)
+end
+
+function Client:get_name()
+	local opsys = love.system.getOS( )
+
+	local name = "Hello_:D"..tostring(love.math.random(0,999))
+	if opsys == "Windows" then
+		name = os.getenv("USERNAME") 
+	else
+		name = os.getenv("USER")
+	end 
+
+	return name
 end
 
 return Client

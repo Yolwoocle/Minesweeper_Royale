@@ -13,8 +13,9 @@ function Tile:init(ix, iy, val)
 	self.show_number = true
 end
 
-function Tile:draw(board, x, y, tile_size, is_select)
+function Tile:draw(board, x, y, scale, tile_size, is_select)
 	self.show_number = false
+	scale = scale or 1
 
 	-- Deafult non-hidden color
 	local col = rgb(25,25,25)
@@ -58,13 +59,13 @@ function Tile:draw(board, x, y, tile_size, is_select)
 	-- Show number if exposed
 	if self.show_number then 
 		love.graphics.setColor(board:get_color_of_number(self.val))
-		draw_centered_text(self.val, x, y, tile_size, tile_size)
+		draw_centered_text(self.val, x, y, tile_size, tile_size, 0, scale)
 		love.graphics.setColor(1,1,1)
 	end
 	-- Show flags
 	if self.is_flagged then
 		love.graphics.setColor(1,1,1)
-		love.graphics.draw(img.flag, x, y)
+		love.graphics.draw(img.flag, x, y, 0, scale)
 	end
 	love.graphics.setColor(1,1,1)
 end

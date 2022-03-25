@@ -4,9 +4,7 @@ local Board = require "board"
 
 local Server = Class:inherit()
 
-function Server:init(game)
-	self.game = game
-
+function Server:init()
 	self.udp = socket.udp()
 	self.udp:settimeout(0)
 	self.udp:setsockname('*', 12345)
@@ -37,15 +35,17 @@ function Server:update(dt)
 		if data then
 			print(concat('Recieved client data:', data, "; from:", msg_or_ip, ":", port_or_nil))
 			local cmd, parms = data:match("^(%S*) (.*)$")
-			local address = concat(msg_or_ip,":",port_or_nil)
+			local socket = concat(msg_or_ip,":",port_or_nil)
 			
 			if cmd == "join" then
 				-- User joins
+				local name = parms
 				local new_id = self.number_of_clients + 1
+				if not name or #name <= 1 then  name="user_n°"..tostring(new_id)  end
 				self.number_of_clients = self.number_of_clients + 1
-				self.clients[address] = {
+				self.clients[socket] = {
 					id = new_id,
-					name = "user_n°"..tostring(new_id),
+					name = name,
 					board = Board:new(self.seed),
 					ip = msg_or_ip,
 					port = port_or_nil,
@@ -61,25 +61,27 @@ function Server:update(dt)
 				local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
 				tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
 				
-				self.clients[address].board:on_button1(tx, ty, is_valid)
-				
+				if self.clients[socket] then
+					self.clients[socket].board:on_button1(tx, ty, is_valid)
+				end
+
 			elseif cmd == "flag" then
 				-- Client breaks tile
 				local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
 				tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
 
-				self.clients[address].board:on_button2(tx, ty, is_valid)
-				
-			elseif cmd == "PLZ UPDATE" then
-				print("client asked for update: sending number:", self.num)
-				local cmd = concat("number ", self.num)
-				self.udp:sendto(cmd, msg_or_ip,  port_or_nil)
+				if self.clients[socket] then
+					self.clients[socket].board:on_button2(tx, ty, is_valid)
+				end
+
+			elseif cmd == "ping" then
+				self.udp:sendto("pong!", msg_or_ip,  port_or_nil)
 
 			elseif cmd == 'leave' then
 				-- User leaves
 				local id = parms:match("^(%-?[%d.e]*)")
 				self.number_of_clients = self.number_of_clients - 1
-				self.clients[id] = nil
+				self.clients[socket] = nil
 				print(concat("Player with id ",id," left."))
 
 			elseif cmd == 'stop' then
@@ -99,27 +101,55 @@ end
 function Server:draw()
 	if self.number_of_clients > 0 then
 		-- Display all clients
-		local spacing = 16
+		local spacing = 32
+		local scale = 0.5
 
-		local board_width = self.board_w * self.tile_size
-		local board_height = self.board_h * self.tile_size
-		local overflow_max = math.floor(WINDOW_WIDTH / (board_width + spacing))
+		local board_width = self.board_w * self.tile_size * scale
+		local board_height = self.board_h * self.tile_size * scale
+		local total_board_width = (board_width + spacing)
+		local total_board_height = (board_height + spacing)
+		local overflow_max = math.floor(WINDOW_WIDTH / total_board_width)
+
+		local w = math.min(self.number_of_clients, overflow_max)
+		local total_width = (w * total_board_width) - spacing
+		local h = math.floor((self.number_of_clients / overflow_max) - 0.01)
+		local total_height = (h * total_board_height) - spacing
+
+		local ox = (WINDOW_WIDTH - total_width) / 2
+		local oy = (WINDOW_HEIGHT - total_height) / 2 - board_height/2
 
 		local i = 0
-		for address,client in pairs(self.clients) do
-		draw_centered_text("At least one client :D", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+		for socket,client in pairs(self.clients) do
+			local x = ox +           (i % overflow_max) * total_board_width
+			local y = oy + math.floor(i / overflow_max) * total_board_height
 
-			local x =           (i % overflow_max) * (board_width + spacing)
-			local y = math.floor(i / overflow_max) * (board_height + spacing)
-
+			-- Draw board
 			client.board.x = x
 			client.board.y = y
+			client.board.scale = 0.5
 			client.board:draw()
+			love.graphics.print(client.name, x, y-32)
+
+			-- Draw game over/win
+			if client.board.game_over then
+				love.graphics.setColor(0,0,0, 0.7)
+				love.graphics.rectangle("fill", x, y, board_width, board_height)
+				love.graphics.setColor(1,1,1)
+				draw_centered_text("Perdu !", x,y, board_width, board_height)
+			end
+			if client.board.is_win then
+				love.graphics.setColor(1,1,1, 0.7)
+				love.graphics.rectangle("fill", x, y, board_width, board_height)
+				love.graphics.setColor(1,1,1)
+				draw_centered_text("Victoire !", x,y, board_width, board_height)
+			end
 
 			i=i+1
 		end
+
+		--love.graphics.print(concat(self.number_of_clients," clients connected"), 5,5)
 	else
-		draw_centered_text("No clients :(", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+		draw_centered_text("Aucun client :(", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
 	end	
 end
 

@@ -4,14 +4,17 @@ local Tile = require "tile"
 local img = require "images"
 
 local Board = Class:inherit()
-function Board:init(seed)
+function Board:init(seed, w, h, scale)
 	-- Parameters
-	self.w = 10
-	self.h = 8
-	self.w = 19
-	self.h = 14
-	self.tile_size = 32
+	--self.w = 10
+	--self.h = 8
+	self.w = w or 19
+	self.h = h or 14
+	self.default_tile_size = 32
 	self.number_of_bombs = 40
+
+	self.scale = 1
+	self.tile_size = self.default_tile_size * self.scale
 
 	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
 	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
@@ -57,9 +60,11 @@ end
 
 function Board:update(dt)
 	local tx, ty, isclicked, is_valid = self:get_selected_tile()
-	if isclicked and is_valid then 
 
-	end
+	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
+	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
+
+	self.tile_size = self.default_tile_size * self.scale
 end
 
 function Board:mousepressed(x, y, button)
@@ -84,11 +89,9 @@ function Board:on_button1(tx, ty, is_valid)
 		else -- If the board is not generated yet
 			self:generate_board(tx, ty, self.seed)
 		end
-		-- vérifie si la case existe puis regarde en cas de clique si il y a une bombe --
-
-		if isclicked and self.get_board(tx, ty).is_bomb then
+		-- If there's a bomb, game over
+		if self:get_board(tx, ty).is_bomb then
 			self.game_over = true
-
 		end
 	end
 
@@ -102,6 +105,7 @@ function Board:on_button2(tx, ty, is_valid)
 end
 
 function Board:draw()
+	self.tile_size = self.default_tile_size * self.scale
 	local hov_x, hov_y = self:get_selected_tile()
 
 	for iy=0,self.h-1 do
@@ -111,7 +115,7 @@ function Board:draw()
 			local x = self.x + ix * self.tile_size 
 			local y = self.y + iy * self.tile_size
 
-			tile:draw(self, x, y, self.tile_size, ix == hov_x and iy == hov_y)
+			tile:draw(self, x, y, self.scale, self.tile_size, ix == hov_x and iy == hov_y)
 		end
 	end
 end
