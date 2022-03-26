@@ -204,8 +204,6 @@ function Client:update_socket(dt)
 			elseif cmd == "update" then
 				local rank = parms:match("^(%-?[%d.e]*)$")
 				self.rank = rank
-				seed = tonumber(seed)
-				self.board.seed = seed
 
 			elseif cmd == "begingame" then
 				local maxtimer, seed = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*)$")
