@@ -10,10 +10,10 @@ function Board:init(parent, seed, socketname)
 	self.socket = socketname
 	--self.w = 10
 	--self.h = 8
-	--self.w = w or 19
-	--self.h = h or 14
-	self.w = w or 14
-	self.h = h or 10
+	--self.w = w or 14
+	--self.h = h or 10
+	self.w = w or 19
+	self.h = h or 14
 	self.default_tile_size = 32
 	self.number_of_bombs = 35
 
