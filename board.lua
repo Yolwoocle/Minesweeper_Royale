@@ -4,15 +4,21 @@ local Tile = require "tile"
 local img = require "images"
 
 local Board = Class:inherit()
-function Board:init(seed, w, h, scale)
+function Board:init(parent, seed, socketname)
 	-- Parameters
+	self.parent = parent
+	self.socket = socketname
 	--self.w = 10
 	--self.h = 8
-	self.w = w or 19
-	self.h = h or 14
+	--self.w = w or 19
+	--self.h = h or 14
+	self.w = w or 14
+	self.h = h or 10
 	self.default_tile_size = 32
-	self.number_of_bombs = 40
+	self.number_of_bombs = 2--35
 
+	self.remaining_flags = self.number_of_bombs
+	
 	self.scale = 1
 	self.tile_size = self.default_tile_size * self.scale
 
@@ -65,6 +71,7 @@ function Board:update(dt)
 	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
 
 	self.tile_size = self.default_tile_size * self.scale
+	if not self.is_win then  self:check_if_winning()  end
 end
 
 function Board:mousepressed(x, y, button)
@@ -90,11 +97,10 @@ function Board:on_button1(tx, ty, is_valid)
 			self:generate_board(tx, ty, self.seed)
 		end
 		-- If there's a bomb, game over
-		if self:get_board(tx, ty).is_bomb then
-			self.game_over = true
-		end
+		--[[if self:get_board(tx, ty).is_bomb then
+			self:on_game_over()
+		end-]]
 	end
-
 end
 
 function Board:on_button2(tx, ty, is_valid)
@@ -104,7 +110,7 @@ function Board:on_button2(tx, ty, is_valid)
 
 end
 
-function Board:draw()
+function Board:draw(draw_selection)
 	self.tile_size = self.default_tile_size * self.scale
 	local hov_x, hov_y = self:get_selected_tile()
 
@@ -115,7 +121,10 @@ function Board:draw()
 			local x = self.x + ix * self.tile_size 
 			local y = self.y + iy * self.tile_size
 
-			tile:draw(self, x, y, self.scale, self.tile_size, ix == hov_x and iy == hov_y)
+			local is_select = false
+			if draw_selection then  is_select = (ix == hov_x and iy == hov_y)  end
+
+			tile:draw(self, x, y, self.scale, self.tile_size, is_select)
 		end
 	end
 end
@@ -156,18 +165,31 @@ function Board:reveal_tile(x, y)
 
 	-- Game overs if it's a bomb
 	if tile.is_bomb then
-		self.game_over = true
+		self:on_game_over()
 	end
 end
 
 function Board:toggle_flag(x, y)
-	self.board[y][x]:toggle_flag()
+	local newval = self.board[y][x]:toggle_flag()
+	if newval then
+		self.remaining_flags = self.remaining_flags - 1
+	else
+		self.remaining_flags = self.remaining_flags + 1
+	end
 end
 function Board:set_flag(x, y, v)
 	self.board[y][x]:set_flag(v)
 end
 function Board:get_flag(x, y)
 	return self.board[y][x]:get_flag()
+end
+
+function Board:reset()
+	self.is_generated = false
+	self.game_over = false
+	self.is_win = false
+	self.remaining_flags = self.number_of_bombs
+	self:reset_board()
 end
 
 function Board:reset_board()
@@ -181,27 +203,34 @@ function Board:reset_board()
 	end
 end
 
-function Board:is_winning()
+function Board:check_if_winning()	
 	local number_of_correct_flags = 0
 	for ix=0, self.w-1 do
 		for iy=0, self.h-1 do
 			local tile = self:get_board(ix,iy)
-			if tile.is_bomb and tile.is_flagged then
-				number_of_correct_flags = number_of_correct_flags + 1
+			if tile.is_hidden and not tile.is_bomb then
+				return false
 			end
 		end
 	end
-	local is_win = number_of_correct_flags == self.number_of_bombs
-	self.is_win = is_win
-	return is_win
+
+	self.is_win = true
+	if self.parent.on_win then  self.parent:on_win(self.socket)  end
+	
+	return true
+end
+
+function Board:on_game_over()
+	self.game_over = true
+	if self.parent.on_game_over then  self.parent:on_game_over(self.socket)  end
 end
 
 function Board:generate_board(start_x, start_y, seed)
 	seed = seed or self.seed
 	local rng = love.math.newRandomGenerator(seed)
-	self.is_generated = true
 
-	self:reset_board()
+	self:reset()
+	self.is_generated = true
 
 	-- Generate a list of random bombs
 	local i = self.number_of_bombs

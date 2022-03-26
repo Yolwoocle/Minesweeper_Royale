@@ -94,8 +94,10 @@ end
 function Tile:toggle_flag()
 	if self.is_flagged then
 		self:set_flag(false)
+		return false
 	else
 		self:set_flag(true)
+		return true
 	end
 end
 function Tile:set_flag(v)

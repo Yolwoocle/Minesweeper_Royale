@@ -7,8 +7,8 @@ local NetworkManager = require "network"
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 300
 
-WINDOW_WIDTH = 700
-WINDOW_HEIGHT = 500
+WINDOW_WIDTH = 800
+WINDOW_HEIGHT = 600
 
 local is_server = false
 local is_fullscreen = false
@@ -25,12 +25,14 @@ function love.load(arg)
 	SCREEN_HEIGHT = love.graphics.getHeight()
 
 	if is_server then
+		love.window.setTitle("Minesweeper Royale - Server")
 		is_fullscreen = true
 		love.window.setMode(WINDOW_WIDTH, WINDOW_HEIGHT, {
-			fullscreen = true,
+			fullscreen = false,
 			resizable = true
 		})
 	else
+		love.window.setTitle("Minesweeper Royale")
 		is_fullscreen = false
 		love.window.setMode(WINDOW_WIDTH, WINDOW_HEIGHT, {
 			fullscreen = false, 
@@ -91,7 +93,8 @@ function love.keypressed(key)
 	elseif key == "f12" then
 		-- Restart as server mode
 		is_server = true
-		love.load()
+		notifs = {}
+		love.load("-server")
 		
 	end
 
@@ -111,6 +114,10 @@ function love.resize(w, h)
 	WINDOW_HEIGHT = h
 end
 
-function notification(msg)
-	table.insert(notifs, {msg=msg, t=5})
+function notification(...)
+	local msg = concat(...)
+	table.insert(notifs, {msg=msg, t=10})
+	if #notifs > 20 then
+		table.remove(notifs, 1)
+	end 
 end

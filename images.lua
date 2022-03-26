@@ -16,5 +16,6 @@ end
 
 local img = {}
 img.flag = load_image("flag.png")
+img.clock = load_image("clock.png")
 
 return img

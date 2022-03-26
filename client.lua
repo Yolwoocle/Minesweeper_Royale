@@ -2,21 +2,34 @@ local socket = require "socket"
 local Class = require "class"
 local Board = require "board"
 local font = require "font"
+local img = require "images"
 
 local Client = Class:inherit()
 function Client:init()
+	self.game_begin = false
 	self.is_waiting = true
+	self.waiting_msg = "En attente du serveur..."
+
 	self.is_win = false
-	self.board = Board:new()
+	self.board = Board:new(self)
 	self.name = self:get_name()
+	love.window.setTitle("Minesweeper Royale - "..self.name)
 
 	-- Networking
 	self:init_socket()
+
+	self.timer = 0
 end
 
 function Client:init_socket()
 	print("Client started")
-	self.address = self:read_serverip("localhost")
+	self.is_connected = false
+	self.network_error = ""
+
+	--Which IP in the serverip.txt file the client is connected to
+	self.fallback_number = 1
+	self.fallback_servers = self:read_server_ips()
+	self.address = self.fallback_servers[1] or "localhost"
 	self.port = 12345
 	print("Set address and port "..self.address..":"..tostring(self.port))
 
@@ -26,41 +39,66 @@ function Client:init_socket()
 	print("Attempting connection to server")
 	self.udp = socket.udp()
 	self.udp:settimeout(0)
-	self.udp:setpeername(self.address, self.port)
-	self.msg = ""
-
-	print("Joining server...")
-	local dg = "join "..tostring(self.name)
-	self.udp:send(dg)
+	self:join_server(self.address, self.port)
 	
 	self.message_queue = {}
 	self.t = 0 
+
+	self.do_timeout = true
+	self.timeout_timer = 0
+	self.timeout_max = 5
 end
 
 function Client:update(dt)
 	if self.is_waiting then
 
-	else
-		self.board:update(dt)
-		if self.board:is_winning() then
-			self.is_win = true
-		end
+	else	
+		self.timer = self.timer - dt
 	end
 
+	self.board:update(dt)
 	self:update_socket(dt)
 end
 
 function Client:draw()
-	self.board:draw()
+	-- Display board
+	self.board:draw(self.game_begin)
 	if self.board.game_over then
-		self:draw_game_over()
+		--self:draw_game_over()
+	end
+	
+	-- Clock & timer
+	local x, y = self.board.x, self.board.y-32
+	local time = clamp(0, math.ceil(self.timer),99999)
+	love.graphics.draw(img.clock, x, y)
+	love.graphics.print(time, x+32, y)
+
+	-- Remaining flags
+	x = x + self.board.tile_size*3
+	local n_flags = self.board.remaining_flags
+	love.graphics.draw(img.flag, x, y)
+	love.graphics.print(n_flags, x+32, y)
+
+	-- Last seconds display
+	if tonumber(self.timer) <= 10 and not self.is_waiting then
+		love.graphics.setFont(font.regular_huge)
+		love.graphics.setColor(1,1,1,0.3)
+		draw_centered_text(time, 0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
+		love.graphics.setColor(1,1,1)
+		love.graphics.setFont(font.regular)
 	end
 
+	-- Display waiting messages
 	if self.is_waiting then
 		love.graphics.setColor(0,0,0, .6)
 		love.graphics.rectangle("fill",0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
 		love.graphics.setColor(1,1,1)
-		draw_centered_text("En attente du serveur...",0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
+		draw_centered_text(self.waiting_msg,0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
+	end
+
+	-- Display any network errors
+	if #self.network_error > 0 then
+		draw_centered_text("Erreur: \""..self.network_error.."\"", 0,WINDOW_HEIGHT-32, WINDOW_WIDTH,32)
 	end
 end
 
@@ -74,7 +112,9 @@ function Client:mousepressed(x,y,button)
 end
 
 function Client:on_button1(tx, ty, is_valid)
-	if self.board.on_button1 then  self.board:on_button1(tx, ty, is_valid)  end
+	if self.board.on_button1 and not self.is_waiting then  
+		self.board:on_button1(tx, ty, is_valid)  
+	end
 
 	-- Prepare network package for later
 	table.insert(self.message_queue, {
@@ -83,7 +123,9 @@ function Client:on_button1(tx, ty, is_valid)
 end
 
 function Client:on_button2(tx, ty, is_valid)
-	if self.board.on_button2 then  self.board:on_button2(tx, ty, is_valid)  end
+	if self.board.on_button2 and not self.is_waiting then  
+		self.board:on_button2(tx, ty, is_valid)  
+	end
 
 	-- Prepare network package for later
 	table.insert(self.message_queue, {
@@ -93,6 +135,16 @@ end
 
 function Client:update_socket(dt)
 	self.t = self.t + dt 
+	if self.do_timeout then
+		self.timeout_timer = self.timeout_timer + dt
+	end
+	if self.timeout_timer > self.timeout_max and self.fallback_number > #self.fallback_servers then
+		self.timeout_timer = 0
+		self.do_timeout = false
+		notification("Impossible de se connecter au serveur.")
+		notification("Merci de contacter l'administrateur.")
+	end
+
 	if self.t > self.updaterate then
 		local msg 
 		if #self.message_queue > 0 then
@@ -123,12 +175,14 @@ function Client:update_socket(dt)
 
 		-- Receive data from server
 		if data then 
+			self.is_connected = true
+			self.network_error = ""
 			local cmd, parms = data:match("^(%S*) (.*)$")
 			print("Received server data:", data)
 
 			if cmd == 'assignid' then
 				self.id = tonumber(parms)
-				notification("Established connection with server :D")
+				notification("Connection établie avec le serveur :D")
 
 			elseif cmd == "assignseed" then
 				local seed = parms:match("^(%-?[%d.e]*)$")
@@ -136,8 +190,28 @@ function Client:update_socket(dt)
 				self.board.seed = seed
 
 			elseif cmd == "begingame" then
+				local maxtimer, seed = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*)$")
+				self.game_over = false
+				self.is_win = false
+				max_timer, seed = tonumber(max_timer), tonumber(seed)
+				self.max_timer = maxtimer
+				self.timer = maxtimer
+				self.board.seed = seed
+				self.board:reset()
+
 				self.is_waiting = false
-				print("Server began game")
+				self.game_begin = true
+				print("Server began game with seed "..tostring(seed))
+			
+			elseif cmd == "stopgame" then
+				self.game_begin = false
+				self.is_waiting = true
+				self.waiting_msg = "Partie terminée ! Attendez l'administrateur."
+				print("Game ended. GG!")
+
+			elseif cmd == "quit" then
+				notification("Serveur stoppé ou redémarré.")
+				notification("Veuillez appuyer sur 'f5' pour se reconnecter.")
 
 			else
 				print("Unrecognised server command:", cmd)
@@ -145,25 +219,80 @@ function Client:update_socket(dt)
 		
 		-- If data was nil, msg will contain a description of the problem.
 		elseif msg ~= 'timeout' then 
-			notification("Network error: "..tostring(msg))
+			print(concat("ERROR: ", msg))
+			self.is_connected = false
+			self.network_error = msg
+
+			if msg == "connection refused" then
+				if self.address ~= "localhost" then
+					print("Attempting next fallback server")
+					self:attempt_next_connection()
+				end
+			else
+				notification("Network error: "..tostring(msg))
+			end
+
 		end
 	until not data 
 end
 
-function Client:read_serverip(default)
-	local contents, size = love.filesystem.read("serverip.txt")
-	if contents then
-		print(contents)
-		return contents
+function Client:read_server_ips(default)
+	local ips = {}
+	for line in love.filesystem.lines("serverip.txt") do
+		table.insert(ips, line)
+	end
+	table.insert(ips, "localhost")
+
+	return ips
+end
+
+function Client:join_server(address, port)
+	address = address or self.address
+	address = address or "localhost"
+	port = port or self.port
+	port = port or "12345"
+	--notification("En train d'essayer de se connecter au serveur...")
+	print("En train d'essayer de se connecter au serveur...")
+
+	print("Configured address and port to", address, port)
+	self.address = address
+	self.port = port
+
+	print("Setting peer name")
+	self.udp:setpeername(address, port)
+	self.msg = ""
+
+	print(concat("Requesting to join ", address, ":",port, "..."))
+	local dg = "join "..tostring(self.name)
+	self.udp:send(dg)
+end
+
+function Client:attempt_next_connection()
+	self.fallback_number = self.fallback_number + 1
+	local ip = self.fallback_servers[self.fallback_number]
+	print("Attempting to connect to ",ip)
+	if ip then
+		self:join_server(address, "12345")
 	else
-		local error = size
-		notification(error)
-		return default
+		self:join_server("localhost", "12345")
 	end
 end
 
 function Client:quit()
 	self.udp:send("leave "..self.name)
+end
+
+function Client:on_win()
+	self.is_win = true
+	self.is_waiting = true
+	self.waiting_msg = "Vous avez gagné! En attente des autres joueurs..."
+end
+
+function Client:on_game_over()
+	-- Check for game over/victory
+	self.game_over = true
+	self.is_waiting = true
+	self.waiting_msg = "Perdu ! Veuillez attendre la fin de la partie."
 end
 
 function Client:draw_game_over()
@@ -175,12 +304,12 @@ function Client:draw_game_over()
 
 	--TEXT
 	love.graphics.setColor(1,1,1)
-	local lose_text = "ta pairdu"
+	local lose_text = "Perdu !"
 	local text_width = font.regular:getWidth(lose_text)
 	local text_height = font.regular:getHeight(lose_text)
 	love.graphics.print(lose_text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2-40)
 	
-	lose_text = "tu veux rejouer ?"
+	lose_text = "Rejouer ?"
 	text_width = font.regular:getWidth(lose_text)
 	text_height = font.regular:getHeight(lose_text)
 	love.graphics.print(lose_text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2)
@@ -195,13 +324,13 @@ function Client:draw_winning()
 
 	--TEXT
 	love.graphics.setColor(1,1,1)
-	local text = "gg!"
+	local text = "Félicitations !"
 	draw_centered_text()
 	local text_width = font.regular:getWidth(text)
 	local text_height = font.regular:getHeight(text)
 	love.graphics.print(text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2-40)
 	
-	text = "tu veux rejouer ?"
+	text = "Rejouer ?"
 	text_width = font.regular:getWidth(text)
 	text_height = font.regular:getHeight(text)
 	love.graphics.print(text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2)

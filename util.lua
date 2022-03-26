@@ -49,3 +49,7 @@ function bool_to_int(b)
 	end
 	return 0
 end
+
+function clamp(a, b, c)
+	return math.min(math.max(a, b), c)
+end
