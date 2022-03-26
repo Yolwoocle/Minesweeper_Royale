@@ -43,9 +43,10 @@ function Server:update(dt)
 		data, msg_or_ip, port_or_nil = self.udp:receivefrom()
 		
 		if data then
-			print(concat('Recieved client data:', data, "; from:", msg_or_ip, ":", port_or_nil))
+			--print(concat('Recieved client data:', data, "; from:", msg_or_ip, ":", port_or_nil))
 			local cmd, parms = data:match("^(%S*) (.*)$")
 			local socket = concat(msg_or_ip,":",port_or_nil)
+			local client = self.clients[socket] 
 			
 			if cmd == "join" then
 				-- User joins
@@ -55,30 +56,44 @@ function Server:update(dt)
 				self.number_of_clients = self.number_of_clients + 1
 				self.clients[socket] = {
 					id = new_id,
-					name = name,
-					is_win = false,
-					game_over = false,
-					board = Board:new(self, self.seed, socket),
 					ip = msg_or_ip,
 					port = port_or_nil,
+					name = name,
+					board = Board:new(self, self.seed, socket),
+					
+					rank = 0,
+					is_win = false,
+					game_over = false,
+					state = "",
+					end_time = -1,
 				}
 				notification(name," a rejoint.")
 				print(concat("Client joined, assigned ID :\"",new_id, "\" with name: \"",name,"\""))
 				
 				-- Notify the client with its new ID
+				print("Assigning new id", new_id)
 				self.udp:sendto(concat("assignid ",new_id), msg_or_ip, port_or_nil)
+				print("Assigning new seed", self.seed)
 				self.udp:sendto(concat("assignseed ",self.seed), msg_or_ip, port_or_nil)
-				print("self.seed:", self.seed)
 
 			elseif cmd == 'leave' then
 				-- User leaves
-				local id = parms:match("^(%-?[%d.e]*)")
-				local client = self.clients[socket]
-				notification(client.name," a quitté.")
-				print(concat("Player \"", client.name,"\" with IP ",socket," left."))
-				
-				self.number_of_clients = self.number_of_clients - 1
-				self.clients[socket] = nil
+				if self.clients[socket] then
+					local id = parms:match("^(%-?[%d.e]*)")
+					local client = self.clients[socket]
+					notification(client.name," a quitté.")
+					print(concat("Player \"", client.name,"\" with IP ",socket," left."))
+					
+					self.number_of_clients = self.number_of_clients - 1
+					self.clients[socket] = nil
+				end
+
+			elseif cmd == 'update' then
+				-- Update client
+				if client then
+					local msg = concat("update ",client.rank)
+					self.udp:sendto(msg, msg_or_ip,  port_or_nil)
+				end
 
 			elseif cmd == "break" then
 				-- Client breaks tile
@@ -112,6 +127,7 @@ function Server:update(dt)
 			error("Unknown network error: "..tostring(msg))
 		end
 
+		self:assign_ranks_to_players()
 		-- Update all boards
 		for socket,client in pairs(self.clients) do
 			client.board:update()
@@ -153,10 +169,14 @@ function Server:keypressed(key)
 end
 
 function Server:on_game_over(socketname)
+	self.clients[socketname].state = "lose"
 	self.clients[socketname].game_over = true
+	self.clients[socketname].end_time = self.timer
 end
 function Server:on_win(socketname)
+	self.clients[socketname].state = "win"
 	self.clients[socketname].is_win = true
+	self.clients[socketname].end_time = self.timer
 end
 
 function Server:begin_game()
@@ -169,8 +189,11 @@ function Server:begin_game()
 	for socket,client in pairs(self.clients) do
 		self.udp:sendto(msg, client.ip, client.port)
 
+		client.state = ""
+		client.rank = 0
 		client.is_win = false
 		client.game_over = false
+		client.end_time = -1
 
 		client.board:reset()
 		client.board.seed = self.seed
@@ -229,19 +252,29 @@ function Server:draw_clients()
 		client.board.scale = 0.5
 		client.board:draw()
 		-- Display name & number of flags
-		love.graphics.print(client.name, x, y-32)
+		love.graphics.setColor(1,1,1)
+		love.graphics.print(client.name, x+36, y-32)
 		love.graphics.draw(img.flag, x+board_width-64, y-32)
 		love.graphics.print(client.board.remaining_flags, x+board_width-32, y-32)
+		-- Display current rank
+		love.graphics.setColor(.1,.1,.1)
+		love.graphics.circle("fill", x+16, y-16, 16)
+		love.graphics.setColor(1,1,1)
+		print_centered(client.rank, x+16, y-16)
+		local e = client.rank==1 and "er" or "e"
+		print_centered(e, x+38, y-16, 0, .5)
 
+		love.graphics.setColor(1,1,1)
+		
 		-- Draw game over/win
 		if client.game_over then
-			love.graphics.setColor(0,0,0, 0.4)
+			love.graphics.setColor(0,0,0, 0.7)
 			love.graphics.rectangle("fill", x, y, board_width, board_height)
 			love.graphics.setColor(1,1,1)
 			draw_centered_text("Perdu !", x,y, board_width, board_height)
 
 		elseif client.is_win then
-			love.graphics.setColor(0,0,0, 0.4)
+			love.graphics.setColor(0,0,0, 0.7)
 			love.graphics.rectangle("fill", x, y, board_width, board_height)
 			love.graphics.setColor(1,1,1)
 			draw_centered_text("Victoire !", x,y, board_width, board_height)
@@ -282,6 +315,39 @@ function Server:check_if_all_players_waiting()
 		end
 	end
 	return true
+end
+
+function Server:assign_ranks_to_players()
+	local players = {}
+	for sock,client in pairs(self.clients) do
+		client.number_of_open_tiles = client.board:get_number_of_open_tiles()
+		table.insert(players, client)
+	end
+
+	table.sort(players, function(a,b)
+		-- "Should a be in front of b?"
+		local an, bn = a.number_of_open_tiles, b.number_of_open_tiles
+		if an ~= bn then
+			return an > bn
+		else
+			-- If both players have broken the same number of tiles
+			return a.end_time > b.end_time
+		end
+	end)
+
+	-- Assign rank to referenced objects
+	for rank,player in ipairs(players) do
+		player.rank = rank
+	end
+
+	-- Check for equality
+	for i=1, #players-1 do
+		local a, b = players[i], players[i+1]
+		local an, bn = a.number_of_open_tiles, b.number_of_open_tiles
+		if an == bn and a.end_time == b.end_time then
+			b.rank = a.rank
+		end
+	end
 end
 
 return Server

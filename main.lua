@@ -119,5 +119,5 @@ function notification(...)
 	table.insert(notifs, {msg=msg, t=10})
 	if #notifs > 20 then
 		table.remove(notifs, 1)
-	end 
+	end
 end

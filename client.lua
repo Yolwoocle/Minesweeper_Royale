@@ -19,6 +19,8 @@ function Client:init()
 	self:init_socket()
 
 	self.timer = 0
+
+	self.rank = 0
 end
 
 function Client:init_socket()
@@ -67,8 +69,17 @@ function Client:draw()
 		--self:draw_game_over()
 	end
 	
-	-- Clock & timer
 	local x, y = self.board.x, self.board.y-32
+	-- Current rank
+	love.graphics.setColor(.1,.1,.1)
+	love.graphics.circle("fill", x+16, y-16, 16)
+	love.graphics.setColor(1,1,1)
+	print_centered(client.rank, x+16, y-16)
+	local e = client.rank==1 and "er" or "e"
+	print_centered(e, x+38, y-16, 0, .5)
+
+	-- Clock & timer
+	x = x + self.board.tile_size*3
 	local time = clamp(0, math.ceil(self.timer),99999)
 	love.graphics.draw(img.clock, x, y)
 	love.graphics.print(time, x+32, y)
@@ -78,6 +89,7 @@ function Client:draw()
 	local n_flags = self.board.remaining_flags
 	love.graphics.draw(img.flag, x, y)
 	love.graphics.print(n_flags, x+32, y)
+
 
 	-- Last seconds display
 	if tonumber(self.timer) <= 10 and not self.is_waiting then
@@ -186,6 +198,12 @@ function Client:update_socket(dt)
 
 			elseif cmd == "assignseed" then
 				local seed = parms:match("^(%-?[%d.e]*)$")
+				seed = tonumber(seed)
+				self.board.seed = seed
+
+			elseif cmd == "update" then
+				local rank = parms:match("^(%-?[%d.e]*)$")
+				self.rank = rank
 				seed = tonumber(seed)
 				self.board.seed = seed
 

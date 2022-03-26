@@ -15,7 +15,7 @@ function Board:init(parent, seed, socketname)
 	self.w = w or 14
 	self.h = h or 10
 	self.default_tile_size = 32
-	self.number_of_bombs = 2--35
+	self.number_of_bombs = 35
 
 	self.remaining_flags = self.number_of_bombs
 	
@@ -298,6 +298,20 @@ function Board:recursive_reveal_board(x, y)
 			end
 		end
 	end
+end
+
+function Board:get_number_of_open_tiles()
+	local n = 0
+	for iy = 0, self.h-1 do
+		for ix = 0, self.w-1 do
+			local tile = self.board[iy][ix]
+			local is_open = not tile.is_hidden
+			if is_open and not tile.is_bomb then
+				n = n + 1
+			end 
+		end
+	end
+	return n
 end
 
 function Board:get_color_of_number(num)
