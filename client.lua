@@ -74,8 +74,8 @@ function Client:draw()
 	love.graphics.setColor(.1,.1,.1)
 	love.graphics.circle("fill", x+16, y-16, 16)
 	love.graphics.setColor(1,1,1)
-	print_centered(client.rank, x+16, y-16)
-	local e = client.rank==1 and "er" or "e"
+	print_centered(self.rank, x+16, y-16)
+	local e = self.rank==1 and "er" or "e"
 	print_centered(e, x+38, y-16, 0, .5)
 
 	-- Clock & timer
