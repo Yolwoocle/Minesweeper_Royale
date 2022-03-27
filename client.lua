@@ -31,7 +31,9 @@ function Client:init_socket()
 	--Which IP in the serverip.txt file the client is connected to
 	self.fallback_number = 1
 	self.fallback_servers = self:read_server_ips()
-	self.address = self.fallback_servers[1] or "localhost"
+	local default_serv = self.fallback_servers[1]
+	
+	self.address = default_serv.ip or "localhost"
 	self.port = 12345
 	print("Set address and port "..self.address..":"..tostring(self.port))
 
@@ -39,6 +41,7 @@ function Client:init_socket()
 	self.updaterate = 0.1 
 
 	print("Attempting connection to server")
+	notification("Connection à \"",default_serv.name,"\"...")
 	self.udp = socket.udp()
 	self.udp:settimeout(0)
 	self:join_server(self.address, self.port)
@@ -150,11 +153,21 @@ function Client:update_socket(dt)
 	if self.do_timeout then
 		self.timeout_timer = self.timeout_timer + dt
 	end
-	if self.timeout_timer > self.timeout_max and self.fallback_number > #self.fallback_servers then
-		self.timeout_timer = 0
-		self.do_timeout = false
-		notification("Impossible de se connecter au serveur.")
-		notification("Merci de contacter l'administrateur.")
+	if not self.is_connected and self.timeout_timer > self.timeout_max then
+		if self.fallback_number < #self.fallback_servers then
+			-- Attempt to connect to fallback servers defined in the `serverip.txt` file
+			self.timeout_timer = 0
+			print("Attempting next fallback server: number",self.fallback_number+1)
+			local curserv = self.fallback_servers[self.fallback_number]
+			notification("Impossible de se connecter à \"",curserv.name,"\"")
+			self:attempt_next_connection()
+		else
+			-- If all fallback servers have been tried
+			self.timeout_timer = 0
+			self.do_timeout = false
+			notification("Impossible de se connecter au serveur.")
+			notification("Merci de contacter l'administrateur.")
+		end
 	end
 
 	if self.t > self.updaterate then
@@ -239,11 +252,11 @@ function Client:update_socket(dt)
 			self.is_connected = false
 			self.network_error = msg
 
+			-- If the conenction was refused, attempt next server
 			if msg == "connection refused" then
-				if self.address ~= "localhost" then
-					print("Attempting next fallback server")
-					self:attempt_next_connection()
-				end
+				print("Attempting next fallback server")
+				self.timeout_timer = 0
+				self:attempt_next_connection()
 			else
 				notification("Network error: "..tostring(msg))
 			end
@@ -253,11 +266,18 @@ function Client:update_socket(dt)
 end
 
 function Client:read_server_ips(default)
+	-- Generate list of fallback servers
 	local ips = {}
 	for line in love.filesystem.lines("serverip.txt") do
-		table.insert(ips, line)
+
+		line = line.." "
+		local ip, name = line:match("(%S*) (%S*)")
+		if #name == 0 then  name = ip  end
+		print(concat("New server: ip ",ip," name ",name))
+		table.insert(ips, {ip=ip, name=name})
+
 	end
-	table.insert(ips, "localhost")
+	table.insert(ips, {ip="localhost", name="localhost"})
 
 	return ips
 end
@@ -268,7 +288,7 @@ function Client:join_server(address, port)
 	port = port or self.port
 	port = port or "12345"
 	--notification("En train d'essayer de se connecter au serveur...")
-	print("En train d'essayer de se connecter au serveur...")
+	print(concat("Joining ",address,":",port,"..."))
 
 	print("Configured address and port to", address, port)
 	self.address = address
@@ -285,10 +305,18 @@ end
 
 function Client:attempt_next_connection()
 	self.fallback_number = self.fallback_number + 1
-	local ip = self.fallback_servers[self.fallback_number]
-	print("Attempting to connect to ",ip)
+	if self.fallback_number > #self.fallback_servers then 
+		print("Maximum fallback server number reached, aborting connection attempt")
+		return 
+	end
+	local server = self.fallback_servers[self.fallback_number]
+	local ip, name = server.ip, server.name
+	if not name then   name = ip  end
+
+	notification("Connection à \"",name,"\"...")
+	print("Attempting to connect to ",name)
 	if ip then
-		self:join_server(address, "12345")
+		self:join_server(ip, "12345")
 	else
 		self:join_server("localhost", "12345")
 	end
