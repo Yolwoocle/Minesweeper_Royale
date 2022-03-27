@@ -74,12 +74,16 @@ function Client:draw()
 	
 	local x, y = self.board.x, self.board.y-32
 	-- Current rank
-	love.graphics.setColor(.1,.1,.1)
-	love.graphics.circle("fill", x+16, y-16, 16)
+	--- Circle
+	local rank_col = get_rank_color(self.rank, {.4,.4,.4})
+	love.graphics.setColor(rank_col)
+	love.graphics.draw(img.circle, x, y)
+	--- Text
 	love.graphics.setColor(1,1,1)
-	print_centered(self.rank, x+16, y-16)
+	print_centered(self.rank, x+16, y+16)
+	--- 1"er", 2"e"...
 	local e = self.rank==1 and "er" or "e"
-	print_centered(e, x+38, y-16, 0, .5)
+	print_centered(e, x+38, y+16, 0, .5)
 
 	-- Clock & timer
 	x = x + self.board.tile_size*3
@@ -216,7 +220,7 @@ function Client:update_socket(dt)
 
 			elseif cmd == "update" then
 				local rank = parms:match("^(%-?[%d.e]*)$")
-				self.rank = rank
+				self.rank = tonumber(rank)
 
 			elseif cmd == "begingame" then
 				local maxtimer, seed = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*)$")
@@ -250,6 +254,7 @@ function Client:update_socket(dt)
 		elseif msg ~= 'timeout' then 
 			print(concat("ERROR: ", msg))
 			self.is_connected = false
+			if msg ~= self.network_error then   notification("Erreur: \"",msg,"\"")   end
 			self.network_error = msg
 
 			-- If the conenction was refused, attempt next server

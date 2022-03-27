@@ -53,3 +53,23 @@ end
 function clamp(a, b, c)
 	return math.min(math.max(a, b), c)
 end
+
+function smooth_circle(type, x, y, r, col)
+	love.graphics.setColor(col)
+	love.graphics.setPointSize(r)
+	love.graphics.setPointStyle("smooth")
+	love.graphics.points(x,y)
+	love.graphics.setColor(1,1,1)
+end
+
+function get_rank_color(rank, defcol)
+	if rank == 1 then
+		return rgb(255,206,33)
+	elseif rank == 2 then
+		return rgb(120,163,193)
+	elseif rank == 3 then
+		return rgb(218,75,29)
+	else
+		return defcol
+	end
+end

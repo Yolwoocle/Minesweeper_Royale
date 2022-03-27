@@ -7,9 +7,16 @@ local img = require "images"
 local Server = Class:inherit()
 
 function Server:init()
+	print("----------------------")
+	print("Beginning server loop.")
+
+	self.interface = "0.0.0.0" --"*"
+	self.port = 12345
+
+	print(concat("Setting sock name: ", self.interface,",",self.port))
 	self.udp = socket.udp()
 	self.udp:settimeout(0)
-	self.udp:setsockname('*', 12345)
+	self.udp:setsockname(self.interface, self.port)
 
 	self.num = 100
 	self.running = true
@@ -28,9 +35,7 @@ function Server:init()
 
 	self.game_begin = false
 	self.timer = 0
-	self.max_timer = 3*60
-
-	print "Beginning server loop."
+	self.max_timer = 5*60 --5*60 = 300
 end
 
 function Server:update(dt)
@@ -257,8 +262,9 @@ function Server:draw_clients()
 		love.graphics.draw(img.flag, x+board_width-64, y-32)
 		love.graphics.print(client.board.remaining_flags, x+board_width-32, y-32)
 		-- Display current rank
-		love.graphics.setColor(.1,.1,.1)
-		love.graphics.circle("fill", x+16, y-16, 16)
+		local rank_col = get_rank_color(client.rank, {.2,.2,.2})
+		love.graphics.setColor(rank_col)
+		love.graphics.draw(img.circle, x, y-32)
 		love.graphics.setColor(1,1,1)
 		print_centered(client.rank, x+16, y-16)
 		local e = client.rank==1 and "er" or "e"
