@@ -273,6 +273,7 @@ end
 function Client:read_server_ips(default)
 	-- Generate list of fallback servers
 	local ips = {}
+	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
 
 		line = line.." "
@@ -282,6 +283,7 @@ function Client:read_server_ips(default)
 		table.insert(ips, {ip=ip, name=name})
 
 	end
+	-- Try localhost as last
 	table.insert(ips, {ip="localhost", name="localhost"})
 
 	return ips
