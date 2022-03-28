@@ -34,7 +34,7 @@ function Client:init_socket()
 	local default_serv = self.fallback_servers[1]
 	
 	self.address = default_serv.ip or "localhost"
-	self.port = 12345
+	self.port = default_serv.port or 12345
 	print("Set address and port "..self.address..":"..tostring(self.port))
 
 	-- How long to wait, in seconds, before requesting an update
@@ -276,10 +276,18 @@ function Client:read_server_ips(default)
 	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
 
-		line = line.." "
-		local ip, name = line:match("(%S*) (%S*)")
+		-- PLEASE CHANGE TEMPORARY
+		local s = split_str(line, " ")
+		table.insert(s, false)
+		table.insert(s, false)
+		table.insert(s, false)
+		local ip, name, port = s[1], s[2], s[3]
+		name = name or tostring(ip)
+		port = port or 12345
+		port = tonumber(port)
+
 		if #name == 0 then  name = ip  end
-		print(concat("New server: ip ",ip," name ",name))
+		print(concat("New server: ip ",ip,"; name ",name,"; port ",port))
 		table.insert(ips, {ip=ip, name=name})
 
 	end
