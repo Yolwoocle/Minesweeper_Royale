@@ -1,3 +1,5 @@
+local img = require "images"
+
 function is_between(v, a, b)
 	return a <= v and v <= b
 end
@@ -83,4 +85,29 @@ function split_str(inputstr, sep)
 		table.insert(t, str)
 	end
 	return t
+end
+
+function draw_rank_medal(rank, defcol, x, y)
+	--- Circle
+	local rank_col = get_rank_color(rank, defcol)
+	love.graphics.setColor(rank_col)
+	love.graphics.draw(img.circle, x, y)
+	--- Text
+	love.graphics.setColor(1,1,1)
+	print_centered(rank, x+16, y+16)
+	--- 1"er", 2"e"...
+	local e = rank==1 and "er" or "e"
+	print_centered(e, x+32, y+12, 0, .75)
+end
+
+function tobool(str)
+	return str ~= "false" -- Anything other than "false" returns as true
+end
+
+function random_neighbor(n)
+	return love.math.random()*2*n - n
+end
+
+function random_range(a,b)
+	return love.math.random()*(b-a) + a
 end

@@ -3,6 +3,7 @@ local Board = require "board"
 local Client = require "client"
 local Server = require "server"
 local NetworkManager = require "network"
+local ParticleSystem = require "particlesystem"
 local font = require "font"
 
 local Game = Class:inherit()
@@ -18,6 +19,9 @@ function Game:init(is_server)
 		self.interface = Client:new() --Either Client or Server 
 	end
 	self.network_manager = nil
+	
+	-- GLOBAL SINGLETONS
+	particles = ParticleSystem:new()
 
 	self.debugmode = false
 end
@@ -27,6 +31,7 @@ function Game:update(dt)
 		-- interface represents either a Client or Server
 		self.interface:update(dt)
 	end
+	particles:update(dt)
 end
 
 function Game:draw()
@@ -35,6 +40,8 @@ function Game:draw()
 		-- interface represents either a Client or Server
 		self.interface:draw()
 	end
+
+	love.graphics.print(love.timer.getFPS(), WINDOW_WIDTH/2, 5)
 end
 
 function Game:mousepressed(x, y, button)

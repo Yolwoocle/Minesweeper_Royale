@@ -1,9 +1,13 @@
 require 'util'
+require 'constants'
 local Class = require 'class'
 local img = require 'images'
 
 local Tile = Class:inherit()
-function Tile:init(ix, iy, val)
+function Tile:init(board, ix, iy, x, y, val)
+	self.board = board
+	self.x = x
+	self.y = y
 	self.ix = ix
 	self.iy = iy
 	self.val = val
@@ -11,17 +15,18 @@ function Tile:init(ix, iy, val)
 	self.is_hidden = true
 	self.is_flagged = false
 	self.show_number = true
+	self.is_lighter = ((ix + iy)%2 == 0)
 end
 
 function Tile:draw(board, x, y, scale, tile_size, is_select)
 	self.show_number = false
 	scale = scale or 1
 
-	-- Deafult non-hidden color
-	local col = rgb(25,25,25)
+	-- Deafult revealed color
+	local col = COL_REVEALED
 	-- Hidden when color
 	if self.is_hidden then 
-		col = rgb(100, 200, 77)
+		col = COL_HIDDEN
 	end
 
 	-- Lighter color every 2 tiles
@@ -75,8 +80,26 @@ function Tile:set_val(val)
 end
 
 function Tile:set_hidden(val)
+	local output
+	if (not val) and self.is_hidden then  
+		output = true
+		self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
+		-- Particles
+		--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
+		local ts2 = self.board.tile_size/2
+		local x, y = self.x + ts2, self.y + ts2
+		local dx = random_neighbor(3)
+		local dy = random_range(0,-3)
+		local dr = random_neighbor(0.05)
+		local ds = random_range(0.01, 0.02)
+		local g = 0.1
+		local fx = 0.8
+		particles:new_particle({img.square, COL_HIDDEN}, x, y, 0, 1, dx, dy, dr, ds, g, fx) 
+	end
 	self.is_hidden = val
+	return output
 end
+
 function Tile:is_hidden(val)
 	return self.is_hidden
 end
@@ -94,12 +117,15 @@ end
 function Tile:toggle_flag()
 	if self.is_flagged then
 		self:set_flag(false)
+		self.board.remaining_flags = self.board.remaining_flags + 1 
 		return false
 	else
 		self:set_flag(true)
+		self.board.remaining_flags = self.board.remaining_flags - 1  
 		return true
 	end
 end
+
 function Tile:set_flag(v)
 	if self.is_hidden then
 		self.is_flagged = v

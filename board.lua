@@ -4,28 +4,27 @@ local Tile = require "tile"
 local img = require "images"
 
 local Board = Class:inherit()
-function Board:init(parent, seed, socketname)
+function Board:init(parent, seed, socketname, scale)
 	-- Parameters
 	self.parent = parent
 	self.socket = socketname
 	--self.w = 10
 	--self.h = 8
+	--self.w = w or 14
+	--self.h = h or 10
 	self.w = w or 19
 	self.h = h or 14
-	self.w = w or 14
-	self.h = h or 10
 	self.default_tile_size = 32
-	self.number_of_bombs = 35
+	self.number_of_bombs = 40
+	self.number_of_broken_tiles = 0
 
 	self.remaining_flags = self.number_of_bombs
 	
-	self.scale = 1
+	self.scale = scale or 1
 	self.tile_size = self.default_tile_size * self.scale
 
 	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
 	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
-
-	self.network = nil
 
 	self.is_generated = false
 	self.game_over = false
@@ -35,7 +34,8 @@ function Board:init(parent, seed, socketname)
 	for iy=0, self.h-1 do
 		self.board[iy] = {}
 		for ix=0, self.w-1 do
-			self.board[iy][ix] = Tile:new(ix,iy,0)
+			local x, y = self.x + ix*self.tile_size*self.scale, self.y + iy*self.tile_size*self.scale
+			self.board[iy][ix] = Tile:new(self,ix,iy,x,y,0)
 		end
 	end
 	-- Initialize seed with random value
@@ -81,25 +81,23 @@ function Board:mousepressed(x, y, button)
 end
 
 function Board:on_button1(tx, ty, is_valid)
-	if self.network then
-		if self.network.on_button1 then
-			self.network:on_button1(tx, ty, is_valid)
-		end
-	end
+	local output 
 	
+	-- If the input is valid and it's not a flag
 	if is_valid and not self:get_board(tx,ty):get_flag() then
+		local tile = self:get_board(tx,ty)	
 		
 		if self.is_generated then
-			if not self.game_over then
-				self:reveal_tile(tx, ty)
-			end
-		else -- If the board is not generated yet
+			-- If the board is generated, break tiles
+			output = true
+			self:reveal_tile(tx, ty)
+
+		else -- If the board is not generated yet, generate it
+			output = true
 			self:generate_board(tx, ty, self.seed)
 		end
-		-- If there's a bomb, game over
-		--[[if self:get_board(tx, ty).is_bomb then
-			self:on_game_over()
-		end-]]
+
+		return output
 	end
 end
 
@@ -107,7 +105,6 @@ function Board:on_button2(tx, ty, is_valid)
 	if is_valid then
 		self:toggle_flag(tx, ty)
 	end
-
 end
 
 function Board:draw(draw_selection)
@@ -156,7 +153,8 @@ end
 
 function Board:reveal_tile(x, y)
 	local tile = self.board[y][x]
-	tile.is_hidden = false
+	local success = tile:set_hidden(false)
+	
 
 	if tile.val == 0 then 
 		-- Recursively clear tiles around if it's empty
@@ -171,11 +169,7 @@ end
 
 function Board:toggle_flag(x, y)
 	local newval = self.board[y][x]:toggle_flag()
-	if newval then
-		self.remaining_flags = self.remaining_flags - 1
-	else
-		self.remaining_flags = self.remaining_flags + 1
-	end
+	return newval
 end
 function Board:set_flag(x, y, v)
 	self.board[y][x]:set_flag(v)
@@ -189,6 +183,7 @@ function Board:reset()
 	self.game_over = false
 	self.is_win = false
 	self.remaining_flags = self.number_of_bombs
+	self.number_of_broken_tiles = 0
 	self:reset_board()
 end
 
@@ -279,7 +274,7 @@ end
 
 function Board:recursive_reveal_board(x, y)
 	-- Reveal tile
-	self.board[y][x].is_hidden = false
+	self.board[y][x]:set_hidden(false)
 	
 	-- Reveal tiles around
 	for oy = -1, 1 do
@@ -288,13 +283,13 @@ function Board:recursive_reveal_board(x, y)
 			if self:is_valid_coordinate(x+ox, y+oy) then
 
 				local tile = self.board[y+oy][x+ox]
-				if tile.is_hidden and tile.val == 0 then
+				local is_hidden = tile.is_hidden
+				tile:set_hidden(false)
+				if is_hidden and tile.val == 0 then
 					-- Recursively reveal tiles around
-					self.board[y+oy][x+ox].is_hidden = false
 					self:recursive_reveal_board(x+ox, y+oy)
 				end
-				self.board[y+oy][x+ox].is_hidden = false
-			
+				
 			end
 		end
 	end
@@ -327,6 +322,21 @@ end
 
 function Board:set_bomb(val, x, y)
 	self.board[y][x].is_bomb = val
+end
+
+function Board:item_earthquake(seed)
+	-- Remove half the flags 
+	local rng = love.math.newRandomGenerator(seed)
+	for ix=0,self.w-1 do
+		for iy=0,self.h-1 do
+
+			local tile = self:get_board(ix,iy)--PIN
+			if tile.is_flagged and rng:random() <= 0.5 then
+				tile:set_flag(false)
+			end 
+		
+		end 
+	end
 end
 
 return Board

@@ -20,7 +20,7 @@ function love.load(arg)
 	if arg and arg[1] == "-server" then
 		is_server = true
 	end
-	love.window.setMode(0, 0, {fullscreen = true})
+	love.window.setMode(0, 0, {fullscreen = true, vsync = true})
 	SCREEN_WIDTH = love.graphics.getWidth()
 	SCREEN_HEIGHT = love.graphics.getHeight()
 
@@ -52,6 +52,12 @@ function love.update(dt)
 	for i,notif in pairs(notifs) do
 		notif.t = notif.t - dt
 		if notif.t < 0 then
+			table.remove(notifs, 1)
+		end
+	end
+
+	if #notifs > 15 then
+		for i=1, #notifs-15 do
 			table.remove(notifs, 1)
 		end
 	end
@@ -113,6 +119,51 @@ function love.resize(w, h)
 	WINDOW_WIDTH = w
 	WINDOW_HEIGHT = h
 end
+
+function love.run()
+	--  DEFAULT love.run FUNCTION: https://love2d.org/wiki/love.run 
+
+	if love.load then love.load(love.arg.parseGameArguments(arg), arg) end
+
+	-- We don't want the first frame's dt to include time taken by love.load.
+	if love.timer then love.timer.step() end
+
+	local dt = 0
+
+	-- Main loop time.
+	return function()
+		-- Process events.
+		if love.event then
+			love.event.pump()
+			for name, a,b,c,d,e,f in love.event.poll() do
+				if name == "quit" then
+					if not love.quit or not love.quit() then
+						return a or 0
+					end
+				end
+				love.handlers[name](a,b,c,d,e,f)
+			end
+		end
+
+		-- Update dt, as we'll be passing it to update
+		if love.timer then dt = love.timer.step() end
+
+		-- Call update and draw
+		if love.update then love.update(dt) end -- will pass 0 if love.timer is disabled
+
+		if love.graphics and love.graphics.isActive() then
+			love.graphics.origin()
+			love.graphics.clear(love.graphics.getBackgroundColor())
+
+			if love.draw then love.draw() end
+
+			love.graphics.present()
+		end
+
+		if love.timer then love.timer.sleep(0.001) end
+	end
+end
+
 
 function notification(...)
 	local msg = concat(...)

@@ -21,6 +21,11 @@ function Client:init()
 	self.timer = 0
 
 	self.rank = 0
+	self.ranking_request_timer = 0
+	self.max_ranking_request_timer = 1 --Ask for other people's rank every ? seconds
+	self.rankings = {}
+
+	self.number_of_broken_tiles = 0
 end
 
 function Client:init_socket()
@@ -68,44 +73,11 @@ end
 function Client:draw()
 	-- Display board
 	self.board:draw(self.game_begin)
-	if self.board.game_over then
-		--self:draw_game_over()
-	end
-	
-	local x, y = self.board.x, self.board.y-32
-	-- Current rank
-	--- Circle
-	local rank_col = get_rank_color(self.rank, {.4,.4,.4})
-	love.graphics.setColor(rank_col)
-	love.graphics.draw(img.circle, x, y)
-	--- Text
-	love.graphics.setColor(1,1,1)
-	print_centered(self.rank, x+16, y+16)
-	--- 1"er", 2"e"...
-	local e = self.rank==1 and "er" or "e"
-	print_centered(e, x+38, y+16, 0, .5)
+	-- Draw particles
+	particles:draw()
 
-	-- Clock & timer
-	x = x + self.board.tile_size*3
-	local time = clamp(0, math.ceil(self.timer),99999)
-	love.graphics.draw(img.clock, x, y)
-	love.graphics.print(time, x+32, y)
-
-	-- Remaining flags
-	x = x + self.board.tile_size*3
-	local n_flags = self.board.remaining_flags
-	love.graphics.draw(img.flag, x, y)
-	love.graphics.print(n_flags, x+32, y)
-
-
-	-- Last seconds display
-	if tonumber(self.timer) <= 10 and not self.is_waiting then
-		love.graphics.setFont(font.regular_huge)
-		love.graphics.setColor(1,1,1,0.3)
-		draw_centered_text(time, 0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
-		love.graphics.setColor(1,1,1)
-		love.graphics.setFont(font.regular)
-	end
+	-- Ui (counters, etc)
+	self:draw_ui()
 
 	-- Display waiting messages
 	if self.is_waiting then
@@ -119,9 +91,45 @@ function Client:draw()
 	if #self.network_error > 0 then
 		draw_centered_text("Erreur: \""..self.network_error.."\"", 0,WINDOW_HEIGHT-32, WINDOW_WIDTH,32)
 	end
+
+	love.graphics.print(self.board.number_of_broken_tiles)
 end
 
-function Client:mousepressed(x,y,button)
+function Client:draw_ui()
+	local x, y = self.board.x, self.board.y-32
+
+	-- Clock & timer
+	local dx = x + self.board.tile_size*0
+	local time = clamp(0, math.ceil(self.timer),99999)
+	-- Flash text in red if less than 30 secs
+	love.graphics.setColor(1,1,1)
+	if self.timer <= 30 and self.timer%1 < .5 then   love.graphics.setColor(1,0,0)   end
+	-- Icon & text
+	love.graphics.draw(img.clock, dx, y)
+	love.graphics.print(time, dx+32, y)
+
+	-- Display number of remaining flags
+	love.graphics.setColor(1,1,1)
+	local dx = x + self.board.tile_size*3
+	local n_flags = self.board.remaining_flags
+	love.graphics.draw(img.flag, dx, y)
+	love.graphics.print(n_flags, dx+32, y)
+
+	-- Draw other players' rankings
+	local dx = x + (self.board.w+1) * self.board.tile_size
+	self:draw_player_rankings(dx, y)
+
+	-- Last seconds display
+	if tonumber(self.timer) <= 10 and not self.is_waiting then
+		love.graphics.setFont(font.regular_huge)
+		love.graphics.setColor(1,1,1,0.3)
+		draw_centered_text(time, 0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
+		love.graphics.setColor(1,1,1)
+		love.graphics.setFont(font.regular)
+	end
+end
+
+function Client:mousepressed(x,y,button)	
 	local tx, ty, isclicked, is_valid = self.board:get_selected_tile()
 	if button == 1 then
 		self:on_button1(tx, ty, is_valid)
@@ -132,31 +140,56 @@ end
 
 function Client:on_button1(tx, ty, is_valid)
 	if self.board.on_button1 and not self.is_waiting then  
-		self.board:on_button1(tx, ty, is_valid)  
+		local broken = self.board:on_button1(tx, ty, is_valid)  
+		
+		if broken then
+			-- Prepare network package for later
+			table.insert(self.message_queue, {
+				"break", concat(tx," ",ty," ",bool_to_int(is_valid)),
+			})
+		end
 	end
 
-	-- Prepare network package for later
-	table.insert(self.message_queue, {
-		"break", concat(tx," ",ty," ",bool_to_int(is_valid)),
-	})
 end
 
 function Client:on_button2(tx, ty, is_valid)
-	if self.board.on_button2 and not self.is_waiting then  
-		self.board:on_button2(tx, ty, is_valid)  
+	local placed_flag
+	if is_valid and not self.is_waiting then  
+		placed_flag = self.board:toggle_flag(tx, ty)
+
+		--response = self.board:on_button2(tx, ty, is_valid)  
 	end
 
-	-- Prepare network package for later
+	if placed_flag ~= nil then
+		-- Prepare network package for later
+		self:notify_server_set_flag(placed_flag, tx, ty, is_valid)
+	end
+end
+
+function Client:notify_server_set_flag(val, tx, ty, is_valid)
 	table.insert(self.message_queue, {
-		"flag", concat(tx," ",ty," ",bool_to_int(is_valid))
+		"flag", concat(val," ",tx," ",ty," ",bool_to_int(is_valid))
 	})
 end
 
+function Client:keypressed(key)
+	if key == "w" and #self.rankings > 1 then
+		local randply = self:get_random_player()
+		notification("TEST envoyer rafale ",randply)--REMOVEME
+		table.insert(self.message_queue, {
+			"itemearthquake", concat(randply)
+		})
+	end
+end
+
 function Client:update_socket(dt)
+	-- Update timer
 	self.t = self.t + dt 
 	if self.do_timeout then
 		self.timeout_timer = self.timeout_timer + dt
 	end
+
+	-- If not connected and timeout time ran out, try another server
 	if not self.is_connected and self.timeout_timer > self.timeout_max then
 		if self.fallback_number < #self.fallback_servers then
 			-- Attempt to connect to fallback servers defined in the `serverip.txt` file
@@ -174,6 +207,7 @@ function Client:update_socket(dt)
 		end
 	end
 
+	-- Send packets to the server every n seconds (default 1/30)
 	if self.t > self.updaterate then
 		local msg 
 		if #self.message_queue > 0 then
@@ -187,7 +221,7 @@ function Client:update_socket(dt)
 			self.udp:send(msg)	
 		end
 
-		-- Request for update
+		-- Request for updates
 		local dg = "update 123"
 		self.udp:send(dg)
 		
@@ -195,52 +229,84 @@ function Client:update_socket(dt)
 		self.t = self.t - self.updaterate 
 	end
 
-	-- Fetch all messages (there could be multiple!)
-	repeat
-		local data, msg = self.udp:receive()
-		if msg ~= "timeout" then 
-			print("data, msg:", data, msg)
-		end
+	-- If the game has started...
+	if self.game_begin then
+	end
+	-- Request the server for other people's rankings
+	self:request_for_rankings()
 
+	-- Fetch all messages (there could be multiple!)
+	repeat --...until not data
+		local data, msg = self.udp:receive()
+		
 		-- Receive data from server
 		if data then 
 			self.is_connected = true
 			self.network_error = ""
 			local cmd, parms = data:match("^(%S*) (.*)$")
-			print("Received server data:", data)
+			if cmd ~= "update" then  print("Received server data:", data)  end
 
 			if cmd == 'assignid' then
 				self.id = tonumber(parms)
 				notification("Connection établie avec le serveur :D")
+
+			elseif cmd == 'assignname' then
+				self.name = parms
+				love.window.setTitle("Minesweeper Royale - "..self.name)
 
 			elseif cmd == "assignseed" then
 				local seed = parms:match("^(%-?[%d.e]*)$")
 				seed = tonumber(seed)
 				self.board.seed = seed
 
+--[[			elseif cmd == "assign" then
+				local id, name, seed = parms:match("^(%-?[%d.e]*) (.*) (%-?[%d.e]*)$")
+				seed = tonumber(seed)
+				self.board.seed = seed
+--]]
 			elseif cmd == "update" then
 				local rank = parms:match("^(%-?[%d.e]*)$")
 				self.rank = tonumber(rank)
 
 			elseif cmd == "begingame" then
-				local maxtimer, seed = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*)$")
-				self.game_over = false
-				self.is_win = false
+				local max_timer, seed = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*)$")
 				max_timer, seed = tonumber(max_timer), tonumber(seed)
-				self.max_timer = maxtimer
-				self.timer = maxtimer
-				self.board.seed = seed
-				self.board:reset()
-
-				self.is_waiting = false
-				self.game_begin = true
-				print("Server began game with seed "..tostring(seed))
+				self:begin_game(max_timer, seed)
 			
 			elseif cmd == "stopgame" then
 				self.game_begin = false
 				self.is_waiting = true
 				self.waiting_msg = "Partie terminée ! Attendez l'administrateur."
 				print("Game ended. GG!")
+
+			elseif cmd == "listranks" then
+				-- Update other player's ranks
+				local ranks = split_str(parms)
+				self.rankings = {}
+				for i=1, #ranks, 2 do
+					local name, rank = ranks[i], ranks[i+1]
+					rank = tonumber(rank)
+
+					-- If the rank is negative, then the player is itself
+					local is_self = false
+					if rank < 0 then 
+						rank = math.abs(rank)
+						is_self = true
+					end
+
+					table.insert(self.rankings, {
+						name=name, 
+						rank=rank,
+						is_self=is_self,
+					})
+				end
+				-- Sort ranks
+				table.sort(self.rankings, function(a,b)  return a.rank < b.rank  end)
+
+			elseif cmd == "itemearthquake" then
+				local seed = parms:match("^(%-?[%d.e]*)$")
+				seed = tonumber(seed)
+				self.board:item_earthquake(seed)
 
 			elseif cmd == "quit" then
 				notification("Serveur stoppé ou redémarré.")
@@ -273,7 +339,7 @@ end
 function Client:read_server_ips(default)
 	-- Generate list of fallback servers
 	local ips = {}
-	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
+	table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
 
 		-- PLEASE CHANGE TEMPORARY
@@ -292,7 +358,7 @@ function Client:read_server_ips(default)
 
 	end
 	-- Try localhost as last
-	table.insert(ips, {ip="localhost", name="localhost"})
+	--table.insert(ips, {ip="localhost", name="localhost"})
 
 	return ips
 end
@@ -339,6 +405,21 @@ end
 
 function Client:quit()
 	self.udp:send("leave "..self.name)
+end
+
+function Client:begin_game(max_timer, seed)	
+	self.game_over = false
+	self.is_win = false
+	
+	self.max_timer = max_timer
+	self.timer = max_timer
+	self.board.seed = seed
+	self.board:reset()
+
+	self.is_waiting = false
+	self.game_begin = true
+	self.number_of_broken_tiles = 0
+	print("Server began game with seed "..tostring(seed))
 end
 
 function Client:on_win()
@@ -395,6 +476,21 @@ function Client:draw_winning()
 	love.graphics.print(text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2)
 end
 
+function Client:draw_player_rankings(x,y)
+	love.graphics.setColor(1,1,1)
+	for i,player in pairs(self.rankings) do
+		local dy = y + (i-1)*(32+8)
+
+		if player.is_self then 
+			love.graphics.rectangle("fill",x-4,dy-4, 200+8,32+8)
+			love.graphics.setColor(0,0,0)
+		end
+		love.graphics.print(player.name, x+40, dy)
+		love.graphics.setColor(1,1,1)
+		draw_rank_medal(player.rank, {.4,.4,.4}, x, dy)
+	end
+end
+
 function Client:get_name()
 	local opsys = love.system.getOS( )
 
@@ -406,6 +502,30 @@ function Client:get_name()
 	end 
 
 	return name
+end
+
+function Client:request_for_rankings()
+	-- Request the server for other player's rankings
+	local dt = love.timer.getDelta()
+	self.ranking_request_timer = self.ranking_request_timer - dt
+
+	if self.ranking_request_timer < 0 then
+		self.udp:send("listranks plslol")
+		self.ranking_request_timer = self.ranking_request_timer + self.max_ranking_request_timer
+	end
+end
+
+function Client:get_random_player()
+	if #self.rankings > 1 then
+		local randply 
+		for i=1,10 do
+			local randply = self.rankings[love.math.random(1, #self.rankings)]
+			if randply.name ~= self.name then
+				return randply.name
+			end
+		end
+	end
+	return nil
 end
 
 return Client
