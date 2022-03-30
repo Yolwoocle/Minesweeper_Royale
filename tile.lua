@@ -2,6 +2,7 @@ require 'util'
 require 'constants'
 local Class = require 'class'
 local img = require 'images'
+local sfx = require 'sfx'
 
 local Tile = Class:inherit()
 function Tile:init(board, ix, iy, x, y, val)
@@ -83,18 +84,7 @@ function Tile:set_hidden(val)
 	local output
 	if (not val) and self.is_hidden then  
 		output = true
-		self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
-		-- Particles
-		--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
-		local ts2 = self.board.tile_size/2
-		local x, y = self.x + ts2, self.y + ts2
-		local dx = random_neighbor(3)
-		local dy = random_range(0,-3)
-		local dr = random_neighbor(0.05)
-		local ds = random_range(0.01, 0.02)
-		local g = 0.1
-		local fx = 0.8
-		particles:new_particle({img.square, COL_HIDDEN}, x, y, 0, 1, dx, dy, dr, ds, g, fx) 
+		self:on_revealed()
 	end
 	self.is_hidden = val
 	return output
@@ -133,6 +123,24 @@ function Tile:set_flag(v)
 end
 function Tile:get_flag()
 	return self.is_flagged
+end
+
+function Tile:on_revealed()
+	self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
+	-- Particles
+	--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
+	local ts2 = self.board.tile_size/2
+	local x, y = self.x + ts2, self.y + ts2
+	local dx = random_neighbor(3)
+	local dy = random_range(0,-3)
+	local dr = random_neighbor(0.05)
+	local ds = random_range(0.01, 0.02)
+	local g = 0.1
+	local fx = 0.8
+	particles:new_particle({img.square, COL_HIDDEN}, x, y, 0, 1, dx, dy, dr, ds, g, fx) 
+	-- SFX
+	local snd = random_sample{sfx.break_1, sfx.break_2, sfx.break_3}
+	audio:play(snd)
 end
 
 return Tile

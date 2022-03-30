@@ -10,7 +10,6 @@ function ParticleSystem:init()
 end
 
 function ParticleSystem:new_particle(...)
-	print("new ptc!!",...)
 	table.insert(self.particles, Particle:new(...))
 end
 

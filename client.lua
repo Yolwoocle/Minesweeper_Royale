@@ -6,6 +6,8 @@ local img = require "images"
 
 local Client = Class:inherit()
 function Client:init()
+	DO_SFX = true
+
 	self.game_begin = false
 	self.is_waiting = true
 	self.waiting_msg = "En attente du serveur..."

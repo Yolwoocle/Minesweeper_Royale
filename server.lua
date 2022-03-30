@@ -7,6 +7,7 @@ local img = require "images"
 local Server = Class:inherit()
 
 function Server:init()
+	DO_SFX = false
 	print("----------------------")
 	print("Beginning server loop.")
 

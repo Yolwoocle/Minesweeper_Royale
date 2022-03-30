@@ -4,6 +4,7 @@ local Client = require "client"
 local Server = require "server"
 local NetworkManager = require "network"
 local ParticleSystem = require "particlesystem"
+local AudioManager = require "audio"
 local font = require "font"
 
 local Game = Class:inherit()
@@ -22,6 +23,7 @@ function Game:init(is_server)
 	
 	-- GLOBAL SINGLETONS
 	particles = ParticleSystem:new()
+	audio = AudioManager:new()
 
 	self.debugmode = false
 end

@@ -111,3 +111,7 @@ end
 function random_range(a,b)
 	return love.math.random()*(b-a) + a
 end
+
+function random_sample(t)
+	return t[love.math.random(1,#t)]
+end
