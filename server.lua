@@ -7,6 +7,11 @@ local img = require "images"
 local Server = Class:inherit()
 
 function Server:init()
+	self.running = true
+
+	-- Server properties
+	self.name = "[SERVER]"
+	
 	DO_SFX = false
 	print("----------------------")
 	print("Beginning server loop.")
@@ -19,23 +24,21 @@ function Server:init()
 	self.udp:settimeout(0)
 	self.udp:setsockname(self.interface, self.port)
 
-	self.num = 100
-	self.running = true
-
+	-- Clients
 	self.number_of_clients = 0
 	self.clients = {}
 	self.last_id = 0
 
-	self.message_queue = {}
-
+	-- Map
 	local b = Board:new(self)
 	self.board_w = b.w
 	self.board_h = b.h
 	self.tile_size = b.tile_size
-
 	self.seed = love.math.random(-99999, 99999)
+	
+	self.game_begin = true
 
-	self.game_begin = false
+	-- Timer
 	self.timer = 0
 	self.max_timer = 5*60 --5*60 = 300
 end

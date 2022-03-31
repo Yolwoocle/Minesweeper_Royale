@@ -5,9 +5,19 @@ local Server = require "server"
 local NetworkManager = require "network"
 local ParticleSystem = require "particlesystem"
 local AudioManager = require "audio"
+local Chat = require "chat"
 local font = require "font"
 
 local Game = Class:inherit()
+
+-- GLOBAL SINGLETONS
+particles = ParticleSystem:new()
+audio = AudioManager:new()
+chat = Chat:new()
+
+function notification(...)
+	chat:new_msg(...)
+end
 
 function Game:init(is_server)
 	love.graphics.setFont(font.regular)
@@ -19,11 +29,12 @@ function Game:init(is_server)
 		self.background_color = {.1, .1, .1}
 		self.interface = Client:new() --Either Client or Server 
 	end
-	self.network_manager = nil
-	
-	-- GLOBAL SINGLETONS
-	particles = ParticleSystem:new()
-	audio = AudioManager:new()
+
+	-- Update chat parent
+	chat.parent = self.interface
+
+	-- Chat
+	self.display_chat = false
 
 	self.debugmode = false
 end
@@ -33,7 +44,9 @@ function Game:update(dt)
 		-- interface represents either a Client or Server
 		self.interface:update(dt)
 	end
+	chat:update(dt)
 	particles:update(dt)
+
 end
 
 function Game:draw()
@@ -42,8 +55,8 @@ function Game:draw()
 		-- interface represents either a Client or Server
 		self.interface:draw()
 	end
+	chat:draw()
 
-	love.graphics.print(love.timer.getFPS(), WINDOW_WIDTH/2, 5)
 end
 
 function Game:mousepressed(x, y, button)
@@ -59,6 +72,8 @@ end
 
 function Game:keypressed(key)
 	if self.interface.keypressed then  self.interface:keypressed(key)  end
+	chat:keypressed(key)
+	
 	if key == "f3" then
 		self.debugmode = not self.debugmode
 	end
@@ -66,6 +81,10 @@ end
 
 function Game:quit()
 	if self.interface.quit then  self.interface:quit()  end
+end
+
+function Game:textinput(text)
+	chat:textinput(text)
 end
 
 return Game

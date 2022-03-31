@@ -36,6 +36,16 @@ function print_centered(text, x, y, rot, sx, sy)
 	love.graphics.print(text, x-text_w/2, y-text_h/2, rot, sx, sy)
 end
 
+function get_text_width(text, font)
+	local font = font or love.graphics.getFont()
+	return font:getWidth(text)
+end
+
+function get_text_height(text, font)
+	local font = font or love.graphics.getFont()
+	return font:getHeight(text)
+end
+
 function concat(...)
 	local args = {...}
 	local s = ""
