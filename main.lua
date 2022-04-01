@@ -16,6 +16,8 @@ local is_fullscreen = false
 game = nil 
 
 function love.load(arg)
+	local success, message =love.filesystem.write("log.txt", "")
+
 	if arg and arg[1] == "-server" then
 		is_server = true
 	end
@@ -38,6 +40,9 @@ function love.load(arg)
 			resizable = true,
 		})
 	end
+	-- enable key repeat so backspace can be held down to trigger love.keypressed multiple times.
+  love.keyboard.setKeyRepeat(true)
+	
 	game = Game:new(is_server)
 
 	-- Load fonts
@@ -79,7 +84,7 @@ function love.keypressed(key)
 	elseif key == "f12" then
 		-- Restart as server mode
 		is_server = true
-		notifs = {}
+		chat:clear()
 		love.load("-server")
 		
 	end
@@ -98,8 +103,15 @@ end
 function love.resize(w, h)
 	WINDOW_WIDTH = w
 	WINDOW_HEIGHT = h
+	if game.resize then   game:resize(w,h)   end
 end
 
 function love.textinput(text)
 	game:textinput(text)
+end
+
+oldprint = print
+function print(...)
+	oldprint(...)
+	local success, errormsg = love.filesystem.append("log.txt", concat(...).."\n")
 end

@@ -19,5 +19,8 @@ img.flag = load_image("flag.png")
 img.clock = load_image("clock.png")
 img.circle = load_image("circle.png")
 img.square = load_image("square.png")
+img.shovel = load_image("shovel.png")
+img.shovel_big = load_image("shovel_48.png")
+img.chat = load_image("chat.png")
 
 return img

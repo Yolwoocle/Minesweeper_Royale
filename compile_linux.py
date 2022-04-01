@@ -21,7 +21,7 @@ def export_win64():
 
 	# Zip into a .love
 	print("Generating .love...")
-	os.system(f'zip -9 -r {gamename}.love . -x ".git/*" -x ".vscode/*"')
+	os.system(f'zip -9 -r {gamename}.love . -x ".git/*" -x ".vscode/*" -x "love_win_64/*" -x "export/*"')
 
 	# Export dirs
 	mkdir('export')

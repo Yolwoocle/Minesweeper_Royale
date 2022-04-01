@@ -16,6 +16,7 @@ function Tile:init(board, ix, iy, x, y, val)
 	self.is_hidden = true
 	self.is_flagged = false
 	self.show_number = true
+	self.scale = scale
 	self.is_lighter = ((ix + iy)%2 == 0)
 end
 
@@ -108,6 +109,7 @@ function Tile:toggle_flag()
 	if self.is_flagged then
 		self:set_flag(false)
 		self.board.remaining_flags = self.board.remaining_flags + 1 
+		self:particle(img.flag)
 		return false
 	else
 		self:set_flag(true)
@@ -129,18 +131,19 @@ function Tile:on_revealed()
 	self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
 	-- Particles
 	--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
-	local ts2 = self.board.tile_size/2
-	local x, y = self.x + ts2, self.y + ts2
-	local dx = random_neighbor(3)
-	local dy = random_range(0,-3)
-	local dr = random_neighbor(0.05)
-	local ds = random_range(0.01, 0.02)
-	local g = 0.1
-	local fx = 0.8
-	particles:new_particle({img.square, COL_HIDDEN}, x, y, 0, 1, dx, dy, dr, ds, g, fx) 
+	self:particle({img.square, COL_HIDDEN}) 
 	-- SFX
 	local snd = random_sample{sfx.break_1, sfx.break_2, sfx.break_3}
 	audio:play(snd)
+end
+
+function Tile:particle(img)
+	local ts2 = self.board.tile_size/2
+	local x = self.board.x + (self.ix+.5)*self.board.tile_size
+	local y = self.board.y + (self.iy+.5)*self.board.tile_size
+	local s = self.board.scale
+
+	particles:new_thrown_particle(img,x,y,s)
 end
 
 return Tile

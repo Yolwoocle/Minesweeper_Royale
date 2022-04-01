@@ -4,7 +4,9 @@ local Tile = require "tile"
 local img = require "images"
 
 local Board = Class:inherit()
-function Board:init(parent, seed, socketname, scale)
+function Board:init(parent, seed, socketname, scale, is_centered)
+	if is_centered == nil then   is_centered = true   end
+
 	-- Parameters
 	self.parent = parent
 	self.socket = socketname
@@ -23,9 +25,11 @@ function Board:init(parent, seed, socketname, scale)
 	self.scale = scale or 1
 	self.tile_size = self.default_tile_size * self.scale
 
+	-- By default, the board position is centered on the screen
 	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
 	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
 
+	self.is_centered = is_centered
 	self.is_generated = false
 	self.game_over = false
 	self.is_win = false
@@ -67,11 +71,19 @@ end
 function Board:update(dt)
 	local tx, ty, isclicked, is_valid = self:get_selected_tile()
 
-	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
-	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
+	-- Center the board on screen
+	if self.is_centered then
+		self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
+		self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
+	end
 
+	-- Update size size
 	self.tile_size = self.default_tile_size * self.scale
 	if not self.is_win then  self:check_if_winning()  end
+
+	-- Compute percentage
+	local ratio = self.number_of_broken_tiles / (self.w * self.h - self.number_of_bombs)
+	self.percentage_cleared = math.ceil(100 * ratio)
 end
 
 function Board:mousepressed(x, y, button)

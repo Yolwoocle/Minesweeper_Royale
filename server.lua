@@ -62,10 +62,12 @@ function Server:update(dt)
 			if cmd == "join" then
 				-- User joins
 				-- TODO: define users by ID rather than socket name
-				local name = parms
+				local name = parms 
 				self.last_id = self.last_id + 1
 				local new_id = self.last_id
+				-- If name is not defined, use default
 				if not name or #name < 1 then  name="Personnecool_"..tostring(new_id)  end
+				-- If usedrname is already taken, append the ID number
 				if self:name_already_used(name) then  name=name..tostring(new_id)  end
 
 				self.number_of_clients = self.number_of_clients + 1
@@ -75,7 +77,7 @@ function Server:update(dt)
 					port = port_or_nil,
 					socket = socket,
 					name = name,
-					board = Board:new(self, self.seed, socket, 0.5),
+					board = Board:new(self, self.seed, socket, 0.5, false),
 					
 					rank = 0,
 					is_win = false,
@@ -83,14 +85,16 @@ function Server:update(dt)
 					state = "",
 					end_time = -1,
 				}
-				notification(name," a rejoint.")
+				self:send_chat_message(concat(name," a rejoint."))
 				print(concat("Client joined, assigned ID :\"",new_id, "\" with name: \"",name,"\""))
 				
 				-- Notify the client with its new ID
 				print("Assigning new id", new_id)
 				self.udp:sendto(concat("assignid ",new_id), msg_or_ip, port_or_nil)
+
 				print("Assigning new seed", self.seed)
 				self.udp:sendto(concat("assignseed ",self.seed), msg_or_ip, port_or_nil)
+				
 				print("Assigning new name", name)
 				self.udp:sendto(concat("assignname ",name), msg_or_ip, port_or_nil)
 
@@ -99,7 +103,7 @@ function Server:update(dt)
 				if self.clients[socket] then
 					local id = parms:match("^(%-?[%d.e]*)")
 					local client = self.clients[socket]
-					notification(client.name," a quitté.")
+					self:send_chat_message(concat(client.name," a quitté."))
 					print(concat("Player \"", client.name,"\" with IP ",socket," left."))
 					
 					self.number_of_clients = self.number_of_clients - 1
@@ -120,9 +124,10 @@ function Server:update(dt)
 					local msg = "listranks"
 					for sock, client in pairs(self.clients) do
 						local rank = client.rank
+						local percentage = client.board.percentage_cleared
 						-- If it's itself, flag it by making rank regative
 						if client.socket == socket then   rank = -rank  end
-						msg = concat(msg," ",client.name," ",rank)
+						msg = concat(msg," ",client.name," ",rank," ",percentage)
 					end
 					self.udp:sendto(msg, msg_or_ip, port_or_nil)
 				end
@@ -145,9 +150,18 @@ function Server:update(dt)
 					self.clients[socket].board:set_flag(tx, ty, set)
 				end
 
-			elseif cmd == "ping" then
-				self.udp:sendto("pong!", msg_or_ip,  port_or_nil)
+			elseif cmd == "chat" then
+				local msg = parms
+				chat:new_msg(msg)
+				-- Send chat message to all clients
+				for s, client in pairs(self.clients) do
+					if s ~= socket then
+						self.udp:sendto("chat "..msg, client.ip, client.port)
+					end
+				end
 
+			elseif cmd == "ping" then
+				self.udp:sendto("chat Pong!", msg_or_ip,  port_or_nil)
 
 			elseif cmd == "stop" then
 				self:stop()
@@ -221,6 +235,11 @@ function Server:draw()
 end
 
 function Server:keypressed(key)
+	if chat.display_chat then
+		-- Do not do buttons if in chat input mode
+		return
+	end
+
 	if key == "s" then
 		self:begin_game()
 	end
@@ -310,11 +329,20 @@ function Server:draw_clients()
 		client.board.scale = 0.5
 		client.board:draw()
 
-		-- Display player name & number of flags
+		-- Display player name 
 		love.graphics.setColor(1,1,1)
 		love.graphics.print(client.name, x+48, y-32)
-		love.graphics.draw(img.flag, x+board_width-64, y-32)
-		love.graphics.print(client.board.remaining_flags, x+board_width-32, y-32)
+		
+		-- Number of flags
+		--love.graphics.draw(img.flag, x+board_width-64, y-32)
+		--love.graphics.print(client.board.remaining_flags, x+board_width-32, y-32)
+		
+		-- Percentage cleared
+		local text = concat(client.board.percentage_cleared,"%")
+		local text_x = x+board_width - get_text_width(text)
+		local percent_x = text_x - 32
+		love.graphics.draw(img.shovel, percent_x, y-32)
+		love.graphics.print(text, text_x, y-32)
 		
 		-- Display current rank
 		draw_rank_medal(client.rank, {.2,.2,.2}, x, y-32)
@@ -426,6 +454,26 @@ function Server:get_user_from_name(name)
 		end
 	end
 	return nil
+end
+
+function Server:send_to_all_clients(msg)
+	--TODO: this might saturate the network if people spam
+	for s,client in pairs(self.clients) do
+		self.udp:sendto(msg, client.ip, client.port)
+	end
+end
+
+function Server:on_new_chat_msg(msg)
+	self:send_to_all_clients(concat("chat ",msg))
+end
+
+function Server:send_chat_message(msg, except)
+	chat:new_msg(msg)
+	for s, client in pairs(self.clients) do
+		if s ~= except then
+			self.udp:sendto("chat "..msg, client.ip, client.port)
+		end
+	end
 end
 
 return Server

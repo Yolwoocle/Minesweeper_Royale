@@ -1,6 +1,8 @@
 local Class = require "class"
+local utf8 = require "utf8"
 
 local Chat = Class:inherit()
+
 function Chat:init(parent)
 	self.parent = parent
 	self.chat = {}
@@ -70,17 +72,22 @@ end
 
 function Chat:keypressed(key)
 	-- Toggle input mode
-	if not self.display_chat and key == 't' then
+	if key == 't' and not self.display_chat then
 		self.display_chat = true
 		self.block_next_input = true
 	end
-	if self.display_chat and key == 'escape' then
+	if key == 'escape' and self.display_chat then
 		self.display_chat = false
 	end
 
 	-- Send messages
-	if self.display_chat and key == "return" then
+	if key == "return" and self.display_chat then
 		self:send_input()
+	end
+
+	-- Beckspace deletes text
+	if key == 'backspace' then
+		self:backspace_input(1)
 	end
 end
 
@@ -101,9 +108,27 @@ end
 
 function Chat:send_input()
 	local username = self.parent.name
-	self:new_msg("<",username,"> ",self.input)
+	local msg = concat("<",username,"> ",self.input)
+	self:new_msg(msg)
 	self.input = ''
 	self.display_chat = false
+
+	self.parent:on_new_chat_msg(msg)
+end
+
+function Chat:clear()
+	self.chat = {}
+end
+
+function Chat:backspace_input(n)
+	if #self.input == 0 then
+		return 
+	end
+
+	--self.input = string.sub(self.input, 0, math.max(0, #self.input - n))
+	local b = math.min(0, -n)
+	local b = utf8.offset(self.input, b) - 1
+	self.input = string.sub(self.input, 0, b)
 end
 
 return Chat

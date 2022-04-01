@@ -46,6 +46,12 @@ function get_text_height(text, font)
 	return font:getHeight(text)
 end
 
+function print_justify_right(text, x, y)
+	local w = get_text_width(text)
+	love.graphics.print(text, x-w, y)
+	return x-w, y
+end
+
 function concat(...)
 	local args = {...}
 	local s = ""
