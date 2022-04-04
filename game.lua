@@ -16,10 +16,15 @@ audio = AudioManager:new()
 chat = Chat:new()
 
 function notification(...)
-	chat:new_msg(...)
+	chat:new_msg(...)	 
 end
 
 function Game:init(is_server)
+	-- GLOBAL SINGLETONS
+	particles = ParticleSystem:new()
+	audio = AudioManager:new()
+	chat = Chat:new()
+
 	love.graphics.setFont(font.regular)
 	self.user_type = nil --"client" or "server"
 	if is_server then

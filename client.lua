@@ -353,7 +353,7 @@ end
 function Client:read_server_ips(default)
 	-- Generate list of fallback servers
 	local ips = {}
-	table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
+	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
 
 		-- PLEASE CHANGE TEMPORARY
@@ -390,12 +390,13 @@ function Client:join_server(address, port)
 	self.port = port
 
 	print("Setting peer name")
-	self.udp:setpeername(address, port)
+	local a,b,c,d,e,f = self.udp:setpeername(address, port)
 	self.msg = ""
+	print("abcdef",a,b,c,d,e,f)
 
-	print(concat("Requesting to join ", address, ":",port, "..."))
-	local dg = "join "..tostring(self.name)
-	self.udp:send(dg)
+	print(concat("Requesting to join ",address, ":",port, "..."))
+	local msg = "join "..tostring(self.name)
+	self.udp:send(msg)
 end
 
 function Client:attempt_next_connection()

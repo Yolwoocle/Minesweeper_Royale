@@ -16,7 +16,7 @@ function Server:init()
 	print("----------------------")
 	print("Beginning server loop.")
 
-	self.interface = "0.0.0.0" --"*"
+	self.interface = "*"--"0.0.0.0"--"*"
 	self.port = 12345
 
 	print(concat("Setting sock name: ", self.interface,",",self.port))

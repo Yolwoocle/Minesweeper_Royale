@@ -3,12 +3,15 @@ local utf8 = require "utf8"
 
 local Chat = Class:inherit()
 
+-- TODO: InputField class
+
 function Chat:init(parent)
 	self.parent = parent
 	self.chat = {}
 	self.display_chat = false
 	self.input = ""
 	self.block_next_input = false
+	self.max_msg = 20
 end
 
 function Chat:update(dt)
@@ -16,8 +19,8 @@ function Chat:update(dt)
 	for i,msg in pairs(self.chat) do
 		msg.t = msg.t - dt
 	end
-	if #self.chat > 20 then
-		for i=1, #self.chat-20 do
+	if #self.chat > self.max_msg then
+		for i=self.max_msg, #self.chat-1 do
 			table.remove(self.chat, 1)
 		end
 	end
@@ -39,7 +42,7 @@ function Chat:draw()
 			a = math.min(1, msg.t)
 		end
 
-		local y = WINDOW_HEIGHT - (i+1)*32
+		local y = WINDOW_HEIGHT - (#self.chat+2)*32 + i*32
 		if self.display_chat then   
 			-- Background rectangle
 			love.graphics.setColor(0,0,0, 0.5)
@@ -51,18 +54,26 @@ function Chat:draw()
 		love.graphics.setColor(1,1,1)
 		
 		if self.display_chat then
-			-- Input
+			-- Input field: black rectangle
+			local y =WINDOW_HEIGHT - 32
 			love.graphics.setColor(0,0,0,0.8)
-			love.graphics.rectangle("fill", 0,WINDOW_HEIGHT-32, WINDOW_WIDTH, 32)
+			love.graphics.rectangle("fill", 0,y, WINDOW_WIDTH, 32)
 			love.graphics.setColor(1,1,1)
-			love.graphics.print(self.input, 2, WINDOW_HEIGHT - 32)
+			love.graphics.print(self.input, 2, y)
+
+			-- Blinking cursor
+			if love.timer.time() % 1 < 0.5 then
+				local x = get_text_width(self.input)
+				love.graphics.setColor(1,1,1)
+				love.graphics.rectangle("fill", x,y, x,y+32)
+			end 
 		end
 	end
 end
 
 function Chat:new_msg(...)
 	local msg = concat(...)
-	table.insert(self.chat, 1, {msg=msg, t=10})
+	table.insert(self.chat, {msg=msg, t=10})
 	
 	-- Delete later messages
 	if #self.chat > 20 then
