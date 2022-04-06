@@ -4,6 +4,8 @@ local Board = require "board"
 local font = require "font"
 local img = require "images"
 
+local udp = socket.udp()
+
 local Server = Class:inherit()
 
 function Server:init()
@@ -20,9 +22,8 @@ function Server:init()
 	self.port = 12345
 
 	print(concat("Setting sock name: ", self.interface,",",self.port))
-	self.udp = socket.udp()
-	self.udp:settimeout(0)
-	self.udp:setsockname(self.interface, self.port)
+	udp:settimeout(0)
+	udp:setsockname(self.interface, self.port)
 
 	-- Clients
 	self.number_of_clients = 0
@@ -50,10 +51,10 @@ function Server:update(dt)
 	local entity, cmd, parms
 
 	if self.running then
-		data, msg_or_ip, port_or_nil = self.udp:receivefrom()
+		data, msg_or_ip, port_or_nil = udp:receivefrom()
 		
 		if data then
-			--print(concat('Recieved client data:', data, "; from:", msg_or_ip, ":", port_or_nil))
+			print(concat('Recieved client data:', data, "; from: ", msg_or_ip, ":", port_or_nil))
 			local cmd, parms = data:match("^(%S*) (.*)$")
 			local ip, port = msg_or_ip, port_or_nil
 			local socket = concat(msg_or_ip,":",port_or_nil)
@@ -85,18 +86,20 @@ function Server:update(dt)
 					state = "",
 					end_time = -1,
 				}
-				self:send_chat_message(concat(name," a rejoint."))
-				print(concat("Client joined, assigned ID :\"",new_id, "\" with name: \"",name,"\""))
 				
 				-- Notify the client with its new ID
 				print("Assigning new id", new_id)
-				self.udp:sendto(concat("assignid ",new_id), msg_or_ip, port_or_nil)
+				udp:sendto(concat("assignid ",new_id), msg_or_ip, port_or_nil)
 
 				print("Assigning new seed", self.seed)
-				self.udp:sendto(concat("assignseed ",self.seed), msg_or_ip, port_or_nil)
+				udp:sendto(concat("assignseed ",self.seed), msg_or_ip, port_or_nil)
 				
 				print("Assigning new name", name)
-				self.udp:sendto(concat("assignname ",name), msg_or_ip, port_or_nil)
+				udp:sendto(concat("assignname ",name), msg_or_ip, port_or_nil)
+				
+				-- Notify others with a chat message
+				self:send_chat_message(concat(name," a rejoint."))
+				print(concat("Client joined, assigned ID :\"",new_id, "\" with name: \"",name,"\""))
 
 			elseif cmd == 'leave' then
 				-- User leaves
@@ -114,22 +117,26 @@ function Server:update(dt)
 				-- Update client with their rank
 				if client then
 					local msg = concat("update ",client.rank)
-					self.udp:sendto(msg, msg_or_ip,  port_or_nil)
+					udp:sendto(msg, msg_or_ip,  port_or_nil)
 				end
 			
 			elseif cmd == "listranks" then
 				-- Update client with other players' rankings
-				-- TODO: this might create strings that are too big
+				-- TODO: this might create strings that are too big and 
+				-- saturate the network. Right now the cooldown is at 1
+				-- seconds, change if it's needed, or split into multiple messages.
 				if client then
 					local msg = "listranks"
 					for sock, client in pairs(self.clients) do
 						local rank = client.rank
 						local percentage = client.board.percentage_cleared
-						-- If it's itself, flag it by making rank regative
+
+						-- If it's itself, flag it by making the rank regative
 						if client.socket == socket then   rank = -rank  end
-						msg = concat(msg," ",client.name," ",rank," ",percentage)
+						msg = concatsep({msg, client.name, rank, percentage}, LISTRANKS_SEP)
+						-- ^^^ I'm using '&' as a separator to avoid problems with spaces
 					end
-					self.udp:sendto(msg, msg_or_ip, port_or_nil)
+					udp:sendto(msg, msg_or_ip, port_or_nil)
 				end
 
 			elseif cmd == "break" then
@@ -156,12 +163,12 @@ function Server:update(dt)
 				-- Send chat message to all clients
 				for s, client in pairs(self.clients) do
 					if s ~= socket then
-						self.udp:sendto("chat "..msg, client.ip, client.port)
+						udp:sendto("chat "..msg, client.ip, client.port)
 					end
 				end
 
 			elseif cmd == "ping" then
-				self.udp:sendto("chat Pong!", msg_or_ip,  port_or_nil)
+				udp:sendto("chat Pong!", msg_or_ip,  port_or_nil)
 
 			elseif cmd == "stop" then
 				self:stop()
@@ -175,7 +182,7 @@ function Server:update(dt)
 					local seed = love.math.random(-99999,99999)
 					local msg = concat("itemearthquake ",seed)
 					target.board:item_earthquake(seed)
-					self.udp:sendto(msg, target.ip, target.port)
+					udp:sendto(msg, target.ip, target.port)
 				else
 					notification("Error: invalid item target: \"",target_name,"\"")
 				end
@@ -264,7 +271,7 @@ function Server:begin_game()
 
 	local msg = concat("begingame ",self.max_timer," ",self.seed)
 	for socket,client in pairs(self.clients) do
-		self.udp:sendto(msg, client.ip, client.port)
+		udp:sendto(msg, client.ip, client.port)
 
 		client.state = ""
 		client.rank = 0
@@ -283,13 +290,13 @@ function Server:stop_game()
 
 	local msg = concat("stopgame 123")
 	for socket,client in pairs(self.clients) do
-		self.udp:sendto(msg, client.ip, client.port)
+		udp:sendto(msg, client.ip, client.port)
 	end
 end
 
 function Server:quit()
 	for socket, client in pairs(self.clients) do
-		self.udp:sendto("quit 123", client.ip, client.port)
+		udp:sendto("quit 123", client.ip, client.port)
 	end
 end
 
@@ -459,7 +466,7 @@ end
 function Server:send_to_all_clients(msg)
 	--TODO: this might saturate the network if people spam
 	for s,client in pairs(self.clients) do
-		self.udp:sendto(msg, client.ip, client.port)
+		udp:sendto(msg, client.ip, client.port)
 	end
 end
 
@@ -471,7 +478,7 @@ function Server:send_chat_message(msg, except)
 	chat:new_msg(msg)
 	for s, client in pairs(self.clients) do
 		if s ~= except then
-			self.udp:sendto("chat "..msg, client.ip, client.port)
+			udp:sendto("chat "..msg, client.ip, client.port)
 		end
 	end
 end

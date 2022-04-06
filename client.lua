@@ -4,13 +4,15 @@ local Board = require "board"
 local font = require "font"
 local img = require "images"
 
+local udp = socket.udp()
+
 local Client = Class:inherit()
 function Client:init()
 	DO_SFX = true
 
 	self.game_begin = false
 	self.is_waiting = true
-	self.waiting_msg = "En attente du serveur..."
+	self.waiting_msg = ""
 
 	self.is_win = false
 	self.board = Board:new(self)
@@ -34,6 +36,7 @@ function Client:init_socket()
 	print("Client started")
 	self.is_connected = false
 	self.network_error = ""
+	self.waiting_msg = "Connection au serveur..."
 
 	--Which IP in the serverip.txt file the client is connected to
 	self.fallback_number = 1
@@ -42,16 +45,15 @@ function Client:init_socket()
 	
 	self.address = default_serv.ip or "localhost"
 	self.port = default_serv.port or 12345
-	print("Set address and port "..self.address..":"..tostring(self.port))
+	print("Set address and port to default "..self.address..":"..tostring(self.port))
 
 	-- How long to wait, in seconds, before requesting an update
 	self.updaterate = 0.1 
 
+	udp:settimeout(0)
+
 	print("Attempting connection to server")
-	notification("Connection à \"",default_serv.name,"\"...")
-	self.udp = socket.udp()
-	self.udp:settimeout(0)
-	self:join_server(self.address, self.port)
+	self:join_server(self.address, self.port, default_serv.name)
 	
 	self.message_queue = {}
 	self.t = 0 
@@ -86,7 +88,7 @@ function Client:draw()
 		love.graphics.setColor(0,0,0, .6)
 		love.graphics.rectangle("fill",0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
 		love.graphics.setColor(1,1,1)
-		draw_centered_text(self.waiting_msg,0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
+		draw_centered_text(self.waiting_msg, 0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
 	end
 
 	-- Display any network errors
@@ -99,10 +101,10 @@ function Client:draw_ui()
 	local x, y = self.board.x, self.board.y-32
 
 	-- Display score
-	love.graphics.draw(img.shovel_big, x, y-16)
-	love.graphics.setFont(font.regular_32) 
-	love.graphics.print(tostring(self.board.percentage_cleared).."%", x+42+8, y-8)
-	love.graphics.setFont(font.regular)
+	--love.graphics.draw(img.shovel_big, x, y-16)
+	--love.graphics.setFont(font.regular_32) 
+	--love.graphics.print(tostring(self.board.percentage_cleared).."%", x+42+8, y-8)
+	--love.graphics.setFont(font.regular)
 
 	-- Clock & timer
 	local dx = x + self.board.tile_size*4
@@ -124,6 +126,12 @@ function Client:draw_ui()
 	-- Draw other players' rankings
 	local dx = x + (self.board.w+1) * self.board.tile_size
 	self:draw_player_rankings(dx, y)
+
+	-- Display score
+	love.graphics.draw(img.shovel_big, x, y-16)
+	love.graphics.setFont(font.regular_32) 
+	love.graphics.print(tostring(self.board.percentage_cleared).."%", x+42+8, y-8)
+	love.graphics.setFont(font.regular)
 
 	-- Last seconds display
 	if tonumber(self.timer) <= 10 and not self.is_waiting then
@@ -199,7 +207,7 @@ function Client:update_socket(dt)
 
 	-- If not connected and timeout time ran out, try another server
 	if not self.is_connected and self.timeout_timer > self.timeout_max then
-		if self.fallback_number < #self.fallback_servers then
+		if self.fallback_number <= #self.fallback_servers then
 			-- Attempt to connect to fallback servers defined in the `serverip.txt` file
 			self.timeout_timer = 0
 			local curserv = self.fallback_servers[self.fallback_number]
@@ -213,6 +221,7 @@ function Client:update_socket(dt)
 			self.do_timeout = false
 			notification("Impossible de se connecter au serveur.")
 			notification("Merci de contacter l'administrateur.")
+			self.waiting_msg = "Connection impossible, contactez l'administrateur"
 		end
 	end
 
@@ -227,12 +236,12 @@ function Client:update_socket(dt)
 	
 		-- Send the packet
 		if msg then
-			self.udp:send(msg)	
+			self:send(msg)	
 		end
 
 		-- Request for updates
-		local dg = "update 123"
-		self.udp:send(dg)
+		--local dg = "update 123"
+		--self:send(dg)
 		
 		-- Set t for the next round
 		self.t = self.t - self.updaterate 
@@ -246,7 +255,7 @@ function Client:update_socket(dt)
 
 	-- Fetch all messages (there could be multiple!)
 	repeat --...until not data
-		local data, msg = self.udp:receive()
+		local data, msg = udp:receive()
 		
 		-- Receive data from server
 		if data then 
@@ -290,17 +299,21 @@ function Client:update_socket(dt)
 
 			elseif cmd == "listranks" then
 				-- Update other player's ranks
-				local ranks = split_str(parms)
+				local ranks = split_str(parms, LISTRANKS_SEP) --use '&' as separator
 				self.rankings = {}
 				for i=1, #ranks, 3 do
 					local name, rank, percentage = ranks[i], ranks[i+1], ranks[i+2]
 					rank, percentage = tonumber(rank), tonumber(percentage)
+					rank = rank or 0
 
 					-- If the rank is negative, then the player is itself
 					local is_self = false
 					if rank < 0 then 
 						rank = math.abs(rank)
 						is_self = true
+						
+						-- Update the player's own rank
+						self.rank = rank
 					end
 
 					table.insert(self.rankings, {
@@ -330,12 +343,15 @@ function Client:update_socket(dt)
 				print("Unrecognised server command:", cmd)
 			end
 		
-		-- If data was nil, msg will contain a description of the problem.
+		-- If data was nil, msg will contain a description of the problem
+		-- while trying to recieve server data
 		elseif msg ~= 'timeout' then 
+
 			print(concat("ERROR: ", msg))
 			self.is_connected = false
-			if msg ~= self.network_error then   notification("Erreur: \"",msg,"\"")   end
-			self.network_error = msg
+
+			if msg ~= self.waiting_msg then   notification("Erreur: \"",msg,"\"")   end
+			--self.waiting_msg = msg
 
 			-- If the conenction was refused, attempt next server
 			if msg == "connection refused" then
@@ -351,25 +367,32 @@ function Client:update_socket(dt)
 end
 
 function Client:read_server_ips(default)
-	-- Generate list of fallback servers
+	-- Generate list of fallback servers from the `serverip.txt` file
+	-- The format is the following:
+	-- ip [customNameWithoutSpaces] []
+
+	-- [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+
+
 	local ips = {}
+	
+	local local_ip = self:get_local_ip()
+	table.insert(ips, {ip=local_ip, name="MON HAHAHA Réseau local"})
+
 	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
+		if string.sub(line,1,1) ~= "#" then
+			-- Split the string
+			local s = split_str(line, " ")
+			local ip, name, port = s[1], s[2], s[3]
+			name = name or tostring(ip)
+			port = port or 12345
+			port = tonumber(port)
 
-		-- PLEASE CHANGE TEMPORARY
-		local s = split_str(line, " ")
-		table.insert(s, false)
-		table.insert(s, false)
-		table.insert(s, false)
-		local ip, name, port = s[1], s[2], s[3]
-		name = name or tostring(ip)
-		port = port or 12345
-		port = tonumber(port)
-
-		if #name == 0 then  name = ip  end
-		print(concat("New server: ip ",ip,"; name ",name,"; port ",port))
-		table.insert(ips, {ip=ip, name=name})
-
+			if #name == 0 then  name = ip  end
+			print(concat("New server: ip ",ip,"; name ",name,"; port ",port))
+			table.insert(ips, {ip=ip, name=name})
+		
+		end
 	end
 	-- Try localhost as last
 	--table.insert(ips, {ip="localhost", name="localhost"})
@@ -377,33 +400,80 @@ function Client:read_server_ips(default)
 	return ips
 end
 
-function Client:join_server(address, port)
+function Client:join_server(address, port, name)
 	address = address or self.address
 	address = address or "localhost"
 	port = port or self.port
 	port = port or "12345"
 	--notification("En train d'essayer de se connecter au serveur...")
-	print(concat("Joining ",address,":",port,"..."))
+	notification(string.format("Connection à \"%s\" (%s)...",name,address))
+	print(string.format("Attempting to connect to %s (%s:%s)",name,address,tostring(port)))
 
 	print("Configured address and port to", address, port)
 	self.address = address
 	self.port = port
 
 	print("Setting peer name")
-	local a,b,c,d,e,f = self.udp:setpeername(address, port)
-	self.msg = ""
-	print("abcdef",a,b,c,d,e,f)
+	local success, error = udp:setpeername(address, port)
 
-	print(concat("Requesting to join ",address, ":",port, "..."))
-	local msg = "join "..tostring(self.name)
-	self.udp:send(msg)
+	if success then
+		-- If setting peer name was successful, request to join to server
+		print(concat("Requesting to join ",address, ":",port, "..."))
+		local msg = "join "..tostring(self.name)
+		udp:send(msg)
+
+	else
+		-- If setting peer name was unsuccessful, report error
+		print(concat("Error when joining ",address, ":",port," : ",error))
+		self.waiting_msg = "Impossible de se connecter, vérifiez votre connection"
+	end
+end
+
+function Client:get_local_ip()
+	-- This attempts to get the network IP. 
+	--You can create a UDP socket, use setpeername to bind it to any 
+	--address outside your network, then use getsockname to get the 
+	--local IP. This should work even if the remote address doesn't 
+	--actually exist, as long as it gets routed outside your network 
+	--(so you can use a reserved address, like something in the 
+	--240.0.0.1 - 255.255.255.254 range).
+--[[
+	udp:setpeername("*")
+	local ip = udp:getsockname()
+	print("YOOOO THIS IS MY IP RIGHT????",ip)
+--]]
+
+--[[
+	local hostname = socket.dns.gethostname()
+	local address = socket.dns.toip(hostname)
+	print("Local address", address)
+	return address
+--]]
+	-- This attempts to get the network IP by running 'ipconfig'/'ip a'/MACOS
+	-- and extracting it using a Lua pattern... which is super dumb and stupid. 
+	-- But hopefully it just works and fuck it if doesn't ¯\_(ツ)_/¯
+--[[
+	local pat = ".*(192%.168%.[%d]+%.[%d]+).*"
+	local platform = love.system.getOS()
+	
+	print("aaaaaa", io.popen("ip a"))
+
+	if platform == "Windows" then
+
+	elseif platform == "Linux" then
+		local output = io.popen("ip a")
+		print(output)
+		--local ip = output:match(pat)
+		return ip
+	end
+--]]
 end
 
 function Client:attempt_next_connection()
 	self.fallback_number = self.fallback_number + 1
 	if self.fallback_number > #self.fallback_servers then 
-		print("Maximum fallback server number reached, aborting connection attempt")
-		self.do_timeout = false
+		--print("Maximum fallback server number reached, aborting connection attempt")
+		--self.do_timeout = false
 		return 
 	end
 
@@ -411,17 +481,23 @@ function Client:attempt_next_connection()
 	local ip, name = server.ip, server.name
 	if not name then   name = ip  end
 
-	notification("Connection à \"",name,"\"...")
-	print("Attempting to connect to ",name)
 	if ip then
-		self:join_server(ip, "12345")
+		self:join_server(ip, "12345", name) 
 	else
-		self:join_server("localhost", "12345")
+		self:join_server("localhost", "12345", name)
+	end
+end
+
+function Client:send(msg)	
+	if self.is_connected then
+		udp:send(msg)
+	else
+
 	end
 end
 
 function Client:quit()
-	self.udp:send("leave "..self.name)
+	self:send("leave "..self.name)
 end
 
 function Client:begin_game(max_timer, seed)	
@@ -480,7 +556,7 @@ function Client:get_name()
 		name = os.getenv("USERNAME") 
 	else
 		name = os.getenv("USER")
-	end 
+	end
 
 	return name
 end
@@ -514,45 +590,3 @@ function Client:on_new_chat_msg(msg)
 end
 
 return Client
-
-
---[[function Client:draw_game_over()
-	--RECTANGLE rgb(120,120,233),0.4)
-	love.graphics.setColor(0.3,0.3,0.5,0.7)
-	local rect_width = 0.30*WINDOW_WIDTH
-	local rect_height = 0.30*WINDOW_HEIGHT
-	love.graphics.rectangle("fill", rect_width, rect_height,WINDOW_WIDTH - 2*rect_width,WINDOW_HEIGHT - 2*rect_height ,0, 0, 0)
-
-	--TEXT
-	love.graphics.setColor(1,1,1)
-	local lose_text = "Perdu !"
-	local text_width = font.regular:getWidth(lose_text)
-	local text_height = font.regular:getHeight(lose_text)
-	love.graphics.print(lose_text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2-40)
-	
-	lose_text = "Rejouer ?"
-	text_width = font.regular:getWidth(lose_text)
-	text_height = font.regular:getHeight(lose_text)
-	love.graphics.print(lose_text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2)
-end
-
-function Client:draw_winning()
-	--RECTANGLE rgb(120,120,233),0.4)
-	love.graphics.setColor(0.3,0.3,0.5,0.7)
-	local rect_width = 0.30*WINDOW_WIDTH
-	local rect_height = 0.30*WINDOW_HEIGHT
-	love.graphics.rectangle("fill", rect_width, rect_height,WINDOW_WIDTH - 2*rect_width,WINDOW_HEIGHT - 2*rect_height ,0, 0, 0)
-
-	--TEXT
-	love.graphics.setColor(1,1,1)
-	local text = "Félicitations !"
-	draw_centered_text()
-	local text_width = font.regular:getWidth(text)
-	local text_height = font.regular:getHeight(text)
-	love.graphics.print(text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2-40)
-	
-	text = "Rejouer ?"
-	text_width = font.regular:getWidth(text)
-	text_height = font.regular:getHeight(text)
-	love.graphics.print(text,(WINDOW_WIDTH-text_width)/2,(WINDOW_HEIGHT-text_height)/2)
-end--]]

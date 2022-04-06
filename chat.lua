@@ -1,5 +1,6 @@
 local Class = require "class"
 local utf8 = require "utf8"
+require "constants"
 
 local Chat = Class:inherit()
 
@@ -32,6 +33,7 @@ function Chat:update(dt)
 end
 
 function Chat:draw()
+	-- Draw chat messages
 	for i = 1, #self.chat do
 		local msg = self.chat[i]
 		-- Transparecy
@@ -44,12 +46,18 @@ function Chat:draw()
 
 		local y = WINDOW_HEIGHT - (#self.chat+2)*32 + i*32
 		if self.display_chat then   
-			-- Background rectangle
+			-- Background rectangle if on input mode
 			love.graphics.setColor(0,0,0, 0.5)
 			love.graphics.rectangle("fill", 0,y, get_text_width(msg.msg)+8, 32)
 		end
 		-- Draw text 
 		love.graphics.setColor(1,1,1, a)
+		if msg.color then   
+			-- Custom colors
+			local col = msg.color
+			col[4] = a
+			love.graphics.setColor(col)
+		end
 		love.graphics.print(tostring(msg.msg), 2, y)
 		love.graphics.setColor(1,1,1)
 		
@@ -62,10 +70,11 @@ function Chat:draw()
 			love.graphics.print(self.input, 2, y)
 
 			-- Blinking cursor
-			if love.timer.time() % 1 < 0.5 then
+			local t = 1
+			if love.timer.getTime() % t < t/2 then
 				local x = get_text_width(self.input)
 				love.graphics.setColor(1,1,1)
-				love.graphics.rectangle("fill", x,y, x,y+32)
+				love.graphics.rectangle("fill", x,y, 16,32)
 			end 
 		end
 	end
@@ -73,7 +82,13 @@ end
 
 function Chat:new_msg(...)
 	local msg = concat(...)
-	table.insert(self.chat, {msg=msg, t=10})
+	local msg, color = self:parse_color(msg)
+	local entry = {
+		color = color,
+		msg = msg, 
+		t = 10,
+	}
+	table.insert(self.chat, entry)
 	
 	-- Delete later messages
 	if #self.chat > 20 then
@@ -140,6 +155,20 @@ function Chat:backspace_input(n)
 	local b = math.min(0, -n)
 	local b = utf8.offset(self.input, b) - 1
 	self.input = string.sub(self.input, 0, b)
+end
+
+function Chat:parse_color(msg)
+	local col = COL_WHITE
+	if string.sub(msg,1,1)=="%" then
+		local code = string.sub(msg,2,2)
+		
+		if code == "y" then 
+			msg = string.sub(msg,3,-1)
+			col = COL_YELLOW 
+		end
+
+	end
+	return msg, col
 end
 
 return Chat

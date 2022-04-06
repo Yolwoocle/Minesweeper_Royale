@@ -2,6 +2,7 @@ require "util"
 local Class = require "class"
 local Tile = require "tile"
 local img = require "images"
+local sfx = require "sfx"
 
 local Board = Class:inherit()
 function Board:init(parent, seed, socketname, scale, is_centered)
@@ -45,17 +46,7 @@ function Board:init(parent, seed, socketname, scale, is_centered)
 	-- Initialize seed with random value
 	self.seed = seed or love.math.random(-10000, 10000)
 
-	self.numbers_palette = {
-		[0] = rgb(0,0,0),
-		[1] = rgb(45,45,210),
-		[2] = rgb(44,200,44),
-		[3] = rgb(255,0,33),
-		[4] = rgb(200,255,50),
-		[5] = rgb(200,0,255),
-		[6] = rgb(0,188,211),
-		[7] = rgb(127,127,127),
-		[8] = rgb(255,66,234),	
-	}
+	self.numbers_palette = PALETTE_NUMBERS
 	self.bomb_colors = {
 		rgb(223,0,1),
 		rgb(246,0,177),
@@ -236,6 +227,10 @@ function Board:generate_board(start_x, start_y, seed)
 	seed = seed or self.seed
 	local rng = love.math.newRandomGenerator(seed)
 
+	-- SFX
+	audio:play(sfx.generate)
+
+	-- Reset board
 	self:reset()
 	self.is_generated = true
 

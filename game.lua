@@ -16,7 +16,7 @@ audio = AudioManager:new()
 chat = Chat:new()
 
 function notification(...)
-	chat:new_msg(...)	 
+	chat:new_msg("%y"..concat(...))
 end
 
 function Game:init(is_server)

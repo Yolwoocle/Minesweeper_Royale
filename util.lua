@@ -61,6 +61,16 @@ function concat(...)
 	return s
 end
 
+function concatsep(tab, sep)
+	sep = sep or " "
+	local s = tab[1]
+	for i=2,#tab do
+		s = s..sep..tostring(tab[i])
+	end
+	return s
+end
+
+
 function bool_to_int(b)
 	if b then
 		return 1

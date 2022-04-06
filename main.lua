@@ -2,6 +2,7 @@ local Class = require "class"
 local Game = require "game"
 local Board = require "board"
 local NetworkManager = require "network"
+local sfx = require "sfx"
 
 -- Global parameters
 WINDOW_WIDTH = 400
@@ -16,11 +17,14 @@ local is_fullscreen = false
 game = nil 
 
 function love.load(arg)
-	local success, message =love.filesystem.write("log.txt", "")
+	-- Initialize log files for errors & stuff
+	local success, message = love.filesystem.write("log.txt", "")
 
+	-- If ran from the command line with "-server" flag, then run as server
 	if arg and arg[1] == "-server" then
 		is_server = true
 	end
+
 	love.window.setMode(0, 0, {fullscreen = true, vsync = true})
 	SCREEN_WIDTH = love.graphics.getWidth()
 	SCREEN_HEIGHT = love.graphics.getHeight()
