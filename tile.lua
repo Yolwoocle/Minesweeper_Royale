@@ -162,6 +162,8 @@ end
 function Tile:confetti(number)
 	number = number or 1
 
+	local scale = random_range(0.3,0.7)
+
 	local ts2 = self.board.tile_size/2
 	local x = self.board.x + (self.ix+.5)*self.board.tile_size
 	local y = self.board.y + (self.iy+.5)*self.board.tile_size

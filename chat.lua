@@ -1,6 +1,10 @@
 local Class = require "class"
-local utf8 = require "utf8"
+local utf8 = require 'lua-utf8'
 require "constants"
+require 'util'
+
+uft8 = {}
+setmetatable(uft8, {__index=function() error("it's utf8 not uft8 you dumbass") end})
 
 local Chat = Class:inherit()
 
@@ -10,9 +14,11 @@ function Chat:init(parent)
 	self.parent = parent -- Client or Server
 	self.chat = {}
 	self.display_chat = false
-	self.input = ""
 	self.block_next_input = false
-	self.max_msg = 20
+	self.max_msg = 20  --MAximum nb of msgs that the chat can store
+	
+	self.input = ""
+	self.cursor_pos = 0
 end
 
 function Chat:update(dt)
@@ -26,10 +32,7 @@ function Chat:update(dt)
 		end
 	end
 
-	-- Accept text input
-	if self.display_chat then 
-		self:accept_text_input()
-	end
+	print("héy", utf8.sub("héy",1,2))
 end
 
 function Chat:draw()
@@ -72,9 +75,10 @@ function Chat:draw()
 			-- Blinking cursor
 			local t = 1
 			if love.timer.getTime() % t < t/2 then
-				local x = get_text_width(self.input)
+				local substr = utf8.sub(self.input, 1, self.cursor_pos)
+				local x = get_text_width(substr)
 				love.graphics.setColor(1,1,1)
-				love.graphics.rectangle("fill", x,y, 16,32)
+				love.graphics.rectangle("fill", x,y, 2,32)
 			end 
 		end
 	end
@@ -115,10 +119,14 @@ function Chat:keypressed(key)
 	if key == 'backspace' then
 		self:backspace_input(1)
 	end
-end
 
-function Chat:accept_text_input()
-	--self.input
+	-- Move cursor
+	if key == 'left' then
+		self:move_cursor(-1)
+	end
+	if key == 'right' then
+		self:move_cursor(1)
+	end
 end
 
 function Chat:textinput(text)
@@ -127,15 +135,31 @@ function Chat:textinput(text)
 		return
 	end
 
+	text = sanitize_input(text)
+
 	if self.display_chat then
-		self.input = self.input .. text
+		local a = utf8.sub(self.input, 1, self.cursor_pos)
+		local b = utf8.sub(self.input, self.cursor_pos+1, utf8.len(self.input))
+		self.input = a..text..b
+		self.cursor_pos = self.cursor_pos + utf8.len(text)
 	end
 end
 
+function Chat:backspace_input(n)
+	if #self.input == 0 then
+		return 
+	end
+
+	local first = utf8.sub(self.input, 1, self.cursor_pos-n)
+	local last  = utf8.sub(self.input, self.cursor_pos+1, -1) 
+	self.input = first..last
+	self.cursor_pos = clamp(self.cursor_pos - n, 0, utf8.len(self.input))
+end
+
 function Chat:send_input()
-	if string.sub(self.input, 1,1) == "/" then
+	if utf8.sub(self.input, 1,1) == "/" then
 		-- Submit commands
-		local text = string.sub(self.input, 2,-1)
+		local text = utf8.sub(self.input, 2,-1)
 		self:send_command(split_str(text, " "))
 	else
 		-- Submit chat message
@@ -145,6 +169,7 @@ function Chat:send_input()
 	end
 	self.input = ''
 	self.display_chat = false
+	self.cursor_pos = 0
 
 	self.parent:on_new_chat_msg(msg)
 end
@@ -154,11 +179,24 @@ function Chat:send_command(a)
 	table.remove(a, 1)
 	local parms = a
 
-	if cmd == "connect" and self.parent.type == "client" then
-		local ip = parms[1]
-		if not ip then   return   end
-		local port = parms[2] or 12345
-		self.parent:join_server(ip, port, tostring(ip))
+	if self.parent.type == "client" then
+		if cmd == "connect" then
+			local ip = parms[1]
+			if not ip then   
+				self:new_msg("%rErreur: aucune addresse fournie (format: client <ip> [port] [nom])")
+				return 
+			end
+			local port = parms[2] or 12345
+			local nom = parms[3] or tostring(ip)
+			self.parent:join_server(ip, port, nom)
+		end
+
+	elseif self.parent.type == "server" then
+		if cmd == "kick" then
+			local user = 
+			self.parent:kick_user()
+		end
+
 	end
 end
 
@@ -166,25 +204,21 @@ function Chat:clear()
 	self.chat = {}
 end
 
-function Chat:backspace_input(n)
-	if #self.input == 0 then
-		return 
-	end
 
-	--self.input = string.sub(self.input, 0, math.max(0, #self.input - n))
-	local b = math.min(0, -n)
-	local b = utf8.offset(self.input, b) - 1
-	self.input = string.sub(self.input, 0, b)
+function Chat:move_cursor(delta)
+	self.cursor_pos = clamp(self.cursor_pos + delta, 0, #self.input)
 end
 
 function Chat:parse_color(msg)
 	local col = COL_WHITE
-	if string.sub(msg,1,1)=="%" then
-		local code = string.sub(msg,2,2)
+	if utf8.sub(msg,1,1)=="%" then
+		local code = utf8.sub(msg,2,2)
+		msg = utf8.sub(msg,3,-1)
 		
 		if code == "y" then 
-			msg = string.sub(msg,3,-1)
 			col = COL_YELLOW 
+		elseif code == "r" then
+			col = COL_RED
 		end
 
 	end

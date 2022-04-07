@@ -1,4 +1,13 @@
 local img = require "images"
+--[[
+local utf8 = require "utf8"
+local utf8 = require("lib.utf8"):init()
+local defaultUTF8 = require("utf8")
+defaultUTF8.gsub = utf8.gsub
+defaultUTF8.find = utf8.find
+defaultUTF8.match = utf8.match
+defaultUTF8.gmatch = utf8.gmatch
+--]]
 
 function is_between(v, a, b)
 	return a <= v and v <= b
@@ -78,8 +87,10 @@ function bool_to_int(b)
 	return 0
 end
 
-function clamp(a, b, c)
-	return math.min(math.max(a, b), c)
+function clamp(val, lower, upper)
+	assert(val and lower and upper, "One of the clamp values is not defined")
+	if lower > upper then lower, upper = upper, lower end -- swap if boundaries supplied the wrong way
+	return math.max(lower, math.min(upper, val))
 end
 
 function smooth_circle(type, x, y, r, col)
@@ -141,3 +152,32 @@ end
 function random_sample(t)
 	return t[love.math.random(1,#t)]
 end
+
+--[[
+function utf8.sub(str, i, j)
+	local offseti = utf8.offset(str, i or 1)
+	local offsetj = utf8.offset(str, j+1 or 0)-1
+	if offseti and (offsetj or not j) then
+		return str:sub(offseti, j and offsetj)
+	end
+	return str
+end
+function utf8.sub(str, i, j)
+	if utf8.len(str) == 0 then  return ""  end
+  return utf8.char(utf8.codepoint(str, i, j))
+end
+--]]
+
+function sanitize_input(text)
+	return text
+end
+
+--[[
+function utf8.sub(s, i, j)
+	if #s == 0 then return "" end
+	-- https://stackoverflow.com/questions/43138867/lua-unicode-using-string-sub-with-two-byted-chars
+	i = math.max(i, 1)
+	j = math.max(j, 1)
+	return utf8.char(utf8.codepoint(s, i, j))
+end
+--]]
