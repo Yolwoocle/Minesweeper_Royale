@@ -107,13 +107,19 @@ end
 
 function Tile:toggle_flag()
 	if self.is_flagged then
+		-- Remove flag
 		self:set_flag(false)
 		self.board.remaining_flags = self.board.remaining_flags + 1 
 		self:particle(img.flag)
+		audio:play(sfx.flag_remove)
 		return false
 	else
+		-- Place flag
 		self:set_flag(true)
 		self.board.remaining_flags = self.board.remaining_flags - 1  
+		if self.is_hidden then 
+			audio:play_random(sfx.flag_place_list)
+		end
 		return true
 	end
 end
@@ -132,9 +138,14 @@ function Tile:on_revealed()
 	-- Particles
 	--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
 	self:particle({img.square, COL_HIDDEN}) 
+	
 	-- SFX
-	local snd = random_sample{sfx.break_1, sfx.break_2, sfx.break_3}
-	audio:play(snd)
+	audio:play_random(sfx.break_list)
+
+	--If it's a bomb, play SFX
+	if self.is_bomb then
+		audio:play_random(sfx.bomb_explode_list)
+	end
 end
 
 function Tile:particle(img)

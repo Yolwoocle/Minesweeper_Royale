@@ -219,8 +219,10 @@ function Board:check_if_winning()
 end
 
 function Board:on_game_over()
-	self.game_over = true
-	if self.parent.on_game_over then  self.parent:on_game_over(self.socket)  end
+	if not self.game_over then
+		self.game_over = true
+		if self.parent.on_game_over then  self.parent:on_game_over(self.socket)  end
+	end
 end
 
 function Board:generate_board(start_x, start_y, seed)

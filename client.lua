@@ -8,8 +8,6 @@ local udp = socket.udp()
 
 local Client = Class:inherit()
 function Client:init()
-	DO_SFX = true
-
 	self.game_begin = false
 	self.is_waiting = true
 	self.waiting_msg = ""
@@ -376,7 +374,7 @@ function Client:read_server_ips(default)
 	local ips = {}
 	
 	local local_ip = self:get_local_ip()
-	table.insert(ips, {ip=local_ip, name="MON HAHAHA Réseau local"})
+	table.insert(ips, {ip=local_ip, name="Réseau local"})
 
 	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
@@ -449,24 +447,26 @@ function Client:get_local_ip()
 	print("Local address", address)
 	return address
 --]]
+
 	-- This attempts to get the network IP by running 'ipconfig'/'ip a'/MACOS
 	-- and extracting it using a Lua pattern... which is super dumb and stupid. 
 	-- But hopefully it just works and fuck it if doesn't ¯\_(ツ)_/¯
---[[
-	local pat = ".*(192%.168%.[%d]+%.[%d]+).*"
-	local platform = love.system.getOS()
-	
-	print("aaaaaa", io.popen("ip a"))
 
+	local platform = love.system.getOS()
+
+	-- The command to get the IP is OS-dependent
 	if platform == "Windows" then
 
 	elseif platform == "Linux" then
-		local output = io.popen("ip a")
-		print(output)
-		--local ip = output:match(pat)
+		local handle = io.popen("ip a")
+		local output = handle:read("*a")
+
+		local pat = ".*(192%.168%.[%d]+%.[%d]+)/.*"
+		local ip = output:match(pat)
+		
+		handle:close()
 		return ip
 	end
---]]
 end
 
 function Client:attempt_next_connection()

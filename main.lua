@@ -17,6 +17,8 @@ local is_fullscreen = false
 game = nil 
 
 function love.load(arg)
+	DO_SFX = true
+	
 	-- Initialize log files for errors & stuff
 	local success, message = love.filesystem.write("log.txt", "")
 
@@ -24,6 +26,11 @@ function love.load(arg)
 	if arg and arg[1] == "-server" then
 		is_server = true
 	end
+
+	if is_server then  	DO_SFX = false   
+	else  	DO_SFX = true
+	end
+	
 
 	love.window.setMode(0, 0, {fullscreen = true, vsync = true})
 	SCREEN_WIDTH = love.graphics.getWidth()

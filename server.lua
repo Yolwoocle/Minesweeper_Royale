@@ -14,7 +14,6 @@ function Server:init()
 	-- Server properties
 	self.name = "[SERVER]"
 	
-	DO_SFX = false
 	print("----------------------")
 	print("Beginning server loop.")
 
