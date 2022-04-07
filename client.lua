@@ -156,7 +156,7 @@ function Client:on_button1(tx, ty, is_valid)
 		
 		if broken then
 			-- Prepare network package for later
-			self:notify_server("break", tx," ",ty," ",bool_to_int(is_valid))
+			self:queue_request("break", tx," ",ty," ",bool_to_int(is_valid))
 		end
 	end
 
@@ -172,17 +172,17 @@ function Client:on_button2(tx, ty, is_valid)
 
 	if placed_flag ~= nil then
 		-- Prepare network package for later
-		self:notify_server_set_flag(placed_flag, tx, ty, is_valid)
+		self:queue_request_set_flag(placed_flag, tx, ty, is_valid)
 	end
 end
 
-function Client:notify_server_set_flag(val, tx, ty, is_valid)
+function Client:queue_request_set_flag(val, tx, ty, is_valid)
 	table.insert(self.message_queue, {
 		"flag", concat(val," ",tx," ",ty," ",bool_to_int(is_valid))
 	})
 end
 
-function Client:notify_server(cmd, ...)
+function Client:queue_request(cmd, ...)
 	table.insert(self.message_queue, {
 		cmd, concat(...)
 	})
@@ -192,7 +192,7 @@ function Client:keypressed(key)
 	if key == "w" and #self.rankings > 1 then
 		local randply = self:get_random_player()
 		notification("TEST envoyer rafale ",randply)--REMOVEME
-		self:notify_server("itemearthquake", randply)
+		self:queue_request("itemearthquake", randply)
 	end
 end
 
@@ -264,7 +264,8 @@ function Client:update_socket(dt)
 
 			if cmd == 'assignid' then
 				self.id = tonumber(parms)
-				notification("Connection établie avec le serveur :D")
+				self.waiting_msg = MSG_PLEASE_WAIT_SERVER
+				notification(MSG_CONNECTION_ESTABLISHED_WITH_SERVER)
 
 			elseif cmd == 'assignname' then
 				self.name = parms
@@ -292,7 +293,7 @@ function Client:update_socket(dt)
 			elseif cmd == "stopgame" then
 				self.game_begin = false
 				self.is_waiting = true
-				self.waiting_msg = "Partie terminée ! Attendez l'administrateur."
+				self.waiting_msg = MSG_GAME_ENDED_PLEASE_WAIT_FOR_ADMIN
 				print("Game ended. GG!")
 
 			elseif cmd == "listranks" then
@@ -330,8 +331,8 @@ function Client:update_socket(dt)
 				self.board:item_earthquake(seed)
 
 			elseif cmd == "quit" then
-				notification("Serveur stoppé ou redémarré.")
-				notification("Veuillez appuyer sur 'f5' pour se reconnecter.")
+				notification(MSG_SERVER_STOPPED_OR_RESTARTED)
+				notification(MSG_PRESS_F5_TO_RESTART)
 
 			elseif cmd == "chat" then
 				local msg = parms
@@ -348,7 +349,9 @@ function Client:update_socket(dt)
 			print(concat("ERROR: ", msg))
 			self.is_connected = false
 
-			if msg ~= self.waiting_msg then   notification("Erreur: \"",msg,"\"")   end
+			if msg ~= self.waiting_msg then  
+				notification(string.format("%s \"%s\"", MSG_ERROR_COLON, msg))
+			end
 			--self.waiting_msg = msg
 
 			-- If the conenction was refused, attempt next server
@@ -374,7 +377,7 @@ function Client:read_server_ips(default)
 	local ips = {}
 	
 	local local_ip = self:get_local_ip()
-	table.insert(ips, {ip=local_ip, name="Réseau local"})
+	table.insert(ips, {ip=local_ip, name=MSG_LOCAL_NETWORK})
 
 	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
@@ -449,13 +452,25 @@ function Client:get_local_ip()
 --]]
 
 	-- This attempts to get the network IP by running 'ipconfig'/'ip a'/MACOS
-	-- and extracting it using a Lua pattern... which is super dumb and stupid. 
+	-- and extracting the first instance using a Lua pattern... which is 
+	-- super dumb and stupid. 
 	-- But hopefully it just works and fuck it if doesn't ¯\_(ツ)_/¯
 
 	local platform = love.system.getOS()
 
 	-- The command to get the IP is OS-dependent
 	if platform == "Windows" then
+		local handle = io.popen("ipconfig")
+		local output = handle:read("*a")
+
+		local pat = ".*(192%.168%.[%d]+%.[%d]+).*"
+		local ip = output:match(pat)
+		
+		handle:close()
+		return ip
+
+	elseif platform == "OS X" then
+		--TODO: get_local_ip for OS X
 
 	elseif platform == "Linux" then
 		local handle = io.popen("ip a")
@@ -558,6 +573,8 @@ function Client:get_name()
 		name = os.getenv("USER")
 	end
 
+	-- Remove the separator character ("&") defined in constants.lua
+	name = name:gsub(LISTRANKS_SEP,"_")
 	return name
 end
 
@@ -567,7 +584,7 @@ function Client:request_for_rankings()
 	self.ranking_request_timer = self.ranking_request_timer - dt
 
 	if self.ranking_request_timer < 0 then
-		self:notify_server("listranks","plslol")
+		self:queue_request("listranks","plslol")
 		self.ranking_request_timer = self.ranking_request_timer + self.max_ranking_request_timer
 	end
 end
@@ -586,7 +603,7 @@ function Client:get_random_player()
 end
 
 function Client:on_new_chat_msg(msg)
-	self:notify_server("chat", msg)
+	self:queue_request("chat", msg)
 end
 
 return Client
