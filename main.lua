@@ -92,12 +92,13 @@ function love.keypressed(key)
 		is_fullscreen = not is_fullscreen
 		love.window.setFullscreen(is_fullscreen)
 
-	elseif key == "f12" then
-		-- Restart as server mode
-		is_server = true
-		chat:clear()
-		love.load("-server")
-		
+	elseif key == "f12" and love.keyboard.isDown("lshift") then
+		if not is_server then
+			-- Restart as server mode
+			is_server = true
+			chat:clear()
+			love.load("-server")
+		end
 	end
 
 	if game.keypressed then  game:keypressed(key)  end

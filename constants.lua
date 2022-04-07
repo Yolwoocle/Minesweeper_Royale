@@ -13,6 +13,8 @@ MSG_LOCAL_NETWORK = "Réseau local"
 LISTRANKS_SEP = "&" --Separtor used for the `listranks` command
 
 COL_BLACK = rgb(0,0,0)
+COL_GRAY = rgb(128,128,128)
+COL_GREY = COL_GRAY --<o/ dab on the haters
 COL_WHITE = rgb(255,255,255)
 COL_GREEN = rgb(44,200,44)
 COL_BLUE = rgb(45,45,210)

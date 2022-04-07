@@ -10,6 +10,7 @@ local Server = Class:inherit()
 
 function Server:init()
 	self.running = true
+	self.type = "server"
 
 	-- Server properties
 	self.name = "[SERVER]"
@@ -129,11 +130,16 @@ function Server:update(dt)
 					for sock, client in pairs(self.clients) do
 						local rank = client.rank
 						local percentage = client.board.percentage_cleared
+						local state = "none"
+						if client.game_over then
+							state = "game_over"
+						elseif client.is_win then
+							state = "win"
+						end
 
 						-- If it's itself, flag it by making the rank regative
 						if client.socket == socket then   rank = -rank  end
-						msg = concatsep({msg, client.name, rank, percentage}, LISTRANKS_SEP)
-						-- ^^^ I'm using '&' as a separator to avoid problems with spaces
+						msg = concatsep({msg, client.name, rank, percentage, state}, " ")
 					end
 					udp:sendto(msg, msg_or_ip, port_or_nil)
 				end

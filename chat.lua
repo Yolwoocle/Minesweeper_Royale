@@ -7,7 +7,7 @@ local Chat = Class:inherit()
 -- TODO: InputField class
 
 function Chat:init(parent)
-	self.parent = parent
+	self.parent = parent -- Client or Server
 	self.chat = {}
 	self.display_chat = false
 	self.input = ""
@@ -133,13 +133,33 @@ function Chat:textinput(text)
 end
 
 function Chat:send_input()
-	local username = self.parent.name
-	local msg = concat("<",username,"> ",self.input)
-	self:new_msg(msg)
+	if string.sub(self.input, 1,1) == "/" then
+		-- Submit commands
+		local text = string.sub(self.input, 2,-1)
+		self:send_command(split_str(text, " "))
+	else
+		-- Submit chat message
+		local username = self.parent.name
+		local msg = concat("<",username,"> ",self.input)
+		self:new_msg(msg)
+	end
 	self.input = ''
 	self.display_chat = false
 
 	self.parent:on_new_chat_msg(msg)
+end
+
+function Chat:send_command(a)
+	local cmd = a[1]
+	table.remove(a, 1)
+	local parms = a
+
+	if cmd == "connect" and self.parent.type == "client" then
+		local ip = parms[1]
+		if not ip then   return   end
+		local port = parms[2] or 12345
+		self.parent:join_server(ip, port, tostring(ip))
+	end
 end
 
 function Chat:clear()

@@ -142,19 +142,34 @@ function Tile:on_revealed()
 	-- SFX
 	audio:play_random(sfx.break_list)
 
-	--If it's a bomb, play SFX
+	--If it's a bomb, play SFX & particles
 	if self.is_bomb then
 		audio:play_random(sfx.bomb_explode_list)
+		self:confetti({img.square, self.bomb_color}, 0.5, 10)
 	end
 end
 
-function Tile:particle(img)
+function Tile:particle(img, scale, number)
+	scale = scale or 1
+	number = number or 1
+
 	local ts2 = self.board.tile_size/2
 	local x = self.board.x + (self.ix+.5)*self.board.tile_size
 	local y = self.board.y + (self.iy+.5)*self.board.tile_size
-	local s = self.board.scale
+	local s = self.board.scale * scale
+end
 
-	particles:new_thrown_particle(img,x,y,s)
+function Tile:confetti(number)
+	number = number or 1
+
+	local ts2 = self.board.tile_size/2
+	local x = self.board.x + (self.ix+.5)*self.board.tile_size
+	local y = self.board.y + (self.iy+.5)*self.board.tile_size
+	local s = self.board.scale * scale
+
+	for i=1, number do
+		particles:new_thrown_particle(img,x,y,s)
+	end
 end
 
 return Tile

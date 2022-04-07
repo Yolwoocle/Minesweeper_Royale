@@ -23,4 +23,7 @@ img.shovel = load_image("shovel.png")
 img.shovel_big = load_image("shovel_48.png")
 img.chat = load_image("chat.png")
 
+img.skull = load_image("skull.png")
+img.crown = load_image("crown.png")
+
 return img

@@ -3,11 +3,14 @@ local Class = require "class"
 local Board = require "board"
 local font = require "font"
 local img = require "images"
+require "constants"
 
 local udp = socket.udp()
 
 local Client = Class:inherit()
 function Client:init()
+	self.type = "client"
+
 	self.game_begin = false
 	self.is_waiting = true
 	self.waiting_msg = ""
@@ -83,7 +86,7 @@ function Client:draw()
 
 	-- Display waiting messages
 	if self.is_waiting then
-		love.graphics.setColor(0,0,0, .6)
+		love.graphics.setColor(0,0,0, .7)
 		love.graphics.rectangle("fill",0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
 		love.graphics.setColor(1,1,1)
 		draw_centered_text(self.waiting_msg, 0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
@@ -93,24 +96,32 @@ function Client:draw()
 	if #self.network_error > 0 then
 		draw_centered_text("Erreur: \""..self.network_error.."\"", 0,0, WINDOW_WIDTH,64)
 	end
+
+	-- Display chat
+	chat:draw()
+
+	-- Display chat icon
+	if not chat.display_chat then
+		local o, r = 5, 16
+	--[[
+		love.graphics.setColor(1,1,1)
+		love.graphics.draw(img.chat, o, WINDOW_HEIGHT-o-32)
+	--]]
+		love.graphics.setColor(COL_GRAY)
+		love.graphics.print("[ T ] Chat", o, WINDOW_HEIGHT-o-32)
+	end
 end
 
 function Client:draw_ui()
 	local x, y = self.board.x, self.board.y-32
 
-	-- Display score
-	--love.graphics.draw(img.shovel_big, x, y-16)
-	--love.graphics.setFont(font.regular_32) 
-	--love.graphics.print(tostring(self.board.percentage_cleared).."%", x+42+8, y-8)
-	--love.graphics.setFont(font.regular)
-
 	-- Clock & timer
 	local dx = x + self.board.tile_size*4
 	local time = clamp(0, math.ceil(self.timer),99999)
-	-- Flash text in red if less than 30 secs
+	---- Flash text in red if less than 30 secs
 	love.graphics.setColor(1,1,1)
 	if self.timer <= 30 and self.timer%1 > .5 then   love.graphics.setColor(1,0,0)   end
-	-- Icon & text
+	---- Clock icon & text
 	love.graphics.draw(img.clock, dx, y)
 	love.graphics.print(time, dx+32, y)
 
@@ -298,10 +309,14 @@ function Client:update_socket(dt)
 
 			elseif cmd == "listranks" then
 				-- Update other player's ranks
-				local ranks = split_str(parms, LISTRANKS_SEP) --use '&' as separator
+				local ranks = split_str(parms, " ") 
+				
+				print("--im gonna listranks--")
+				for k,v in pairs(ranks) do print("listranks",k,v) end
+
 				self.rankings = {}
-				for i=1, #ranks, 3 do
-					local name, rank, percentage = ranks[i], ranks[i+1], ranks[i+2]
+				for i=1, #ranks, 4 do
+					local name, rank, percentage, state = ranks[i], ranks[i+1], ranks[i+2], ranks[i+3]
 					rank, percentage = tonumber(rank), tonumber(percentage)
 					rank = rank or 0
 
@@ -315,11 +330,13 @@ function Client:update_socket(dt)
 						self.rank = rank
 					end
 
+					-- Insert the entry
 					table.insert(self.rankings, {
-						name=name, 
-						rank=rank,
-						is_self=is_self,
-						percentage=percentage,
+						name = name, 
+						rank = rank,
+						is_self = is_self,
+						percentage = percentage,
+						state = state,
 					})
 				end
 				-- Sort ranks
@@ -547,16 +564,32 @@ function Client:draw_player_rankings(x,y)
 	love.graphics.setColor(1,1,1)
 	for i,player in pairs(self.rankings) do
 		local dy = y + (i-1)*(32+8)
+		local ox = 0
 
 		-- If self, draw white rectangle
 		local w, h = 250, 32
 		if player.is_self then 
 			love.graphics.rectangle("fill", x-4, dy-4, w+8, h+8)
-			love.graphics.setColor(0,0,0)
+			love.graphics.setColor(COL_BLACK)
 		end
-		-- Player name & percentage
-		love.graphics.print(player.name, x+40, dy)
+
+		-- Icons for win/death
+		if player.state == "game_over" then
+			love.graphics.draw(img.skull, x+40, dy)
+			ox = ox + 40
+		
+		elseif player.state == "win" then
+			love.graphics.draw(img.skull, x+40, dy)
+			ox = ox + 40
+
+		end
+
+		-- Player name 
+		love.graphics.print(player.name, x+ox+40, dy)
+		-- Player percentage
 		print_justify_right(concat(player.percentage,"%"), x+w, dy)
+		
+
 		-- Rank
 		love.graphics.setColor(1,1,1)
 		draw_rank_medal(player.rank, {.4,.4,.4}, x, dy)
@@ -573,13 +606,13 @@ function Client:get_name()
 		name = os.getenv("USER")
 	end
 
-	-- Remove the separator character ("&") defined in constants.lua
-	name = name:gsub(LISTRANKS_SEP,"_")
+	-- Remove the separator character (" ") defined in constants.lua
+	name = name:gsub(" ","_")
 	return name
 end
 
 function Client:request_for_rankings()
-	-- Request the server for other player's rankings
+	-- Request the server for other player's rankings'''
 	local dt = love.timer.getDelta()
 	self.ranking_request_timer = self.ranking_request_timer - dt
 

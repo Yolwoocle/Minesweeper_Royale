@@ -60,8 +60,6 @@ function Game:draw()
 		-- interface represents either a Client or Server
 		self.interface:draw()
 	end
-	chat:draw()
-
 end
 
 function Game:mousepressed(x, y, button)
