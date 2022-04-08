@@ -639,4 +639,12 @@ function Client:on_new_chat_msg(msg)
 	self:queue_request("chat", msg)
 end
 
+------------------
+---- Commands ----
+------------------
+
+function Client:cmd_connect()
+
+end
+
 return Client

@@ -66,7 +66,7 @@ function Chat:draw()
 		
 		if self.display_chat then
 			-- Input field: black rectangle
-			local y =WINDOW_HEIGHT - 32
+			local y = WINDOW_HEIGHT - 32
 			love.graphics.setColor(0,0,0,0.8)
 			love.graphics.rectangle("fill", 0,y, WINDOW_WIDTH, 32)
 			love.graphics.setColor(1,1,1)
@@ -115,9 +115,12 @@ function Chat:keypressed(key)
 		self:send_input()
 	end
 
-	-- Beckspace deletes text
+	-- Backspace deletes text
 	if key == 'backspace' then
 		self:backspace_input(1)
+	end
+	if key == 'delete' then
+		self:del_input(1)
 	end
 
 	-- Move cursor
@@ -146,15 +149,34 @@ function Chat:textinput(text)
 end
 
 function Chat:backspace_input(n)
-	if #self.input == 0 then
+	local curtext = self.input
+	if #curtext == 0 or self.cursor_pos == 0 then
 		return 
 	end
 
-	local first = utf8.sub(self.input, 1, self.cursor_pos-n)
-	local last  = utf8.sub(self.input, self.cursor_pos+1, -1) 
+	local b = math.max(0, self.cursor_pos-n)
+	local first = utf8.sub(curtext, 1, b)
+	local last  = utf8.sub(curtext, self.cursor_pos+1, -1) 
 	self.input = first..last
-	self.cursor_pos = clamp(self.cursor_pos - n, 0, utf8.len(self.input))
+	self.cursor_pos = clamp(math.max(0, self.cursor_pos-n), 0, utf8.len(self.input))
 end
+
+function Chat:del_input(n)
+	local len = utf8.len(self.input)
+
+	-- When you press "del"
+	local curtext = self.input
+	if #curtext == 0 or self.cursor_pos == len then
+		return 
+	end
+
+	local b = math.min(len+1, self.cursor_pos+1+n)
+	local first = utf8.sub(curtext, 1, self.cursor_pos)
+	local last  = utf8.sub(curtext, b, -1) 
+	self.input = first..last
+--	self.cursor_pos = clamp(math.min(len, self.cursor_pos, 0, utf8.len(self.input))
+end
+
 
 function Chat:send_input()
 	if utf8.sub(self.input, 1,1) == "/" then
@@ -181,14 +203,7 @@ function Chat:send_command(a)
 
 	if self.parent.type == "client" then
 		if cmd == "connect" then
-			local ip = parms[1]
-			if not ip then   
-				self:new_msg("%rErreur: aucune addresse fournie (format: client <ip> [port] [nom])")
-				return 
-			end
-			local port = parms[2] or 12345
-			local nom = parms[3] or tostring(ip)
-			self.parent:join_server(ip, port, nom)
+			self.parent:cmd_connect(parms)
 		end
 
 	elseif self.parent.type == "server" then
