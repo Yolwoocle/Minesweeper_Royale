@@ -58,7 +58,7 @@ def export_win64():
 
 today = str(dt.date.today()) 
 y, m, d = today.split("-")
-gamename = f'DemineurRoyale_v0_{y[2:]}-{m}-{d}'
+gamename = f'DemineurRoyale'#_v0_{y[2:]}-{m}-{d}'
 
 platforms = ("win32","win64","macos","linux")
 platform = ''

@@ -57,6 +57,28 @@ function Board:init(parent, seed, socketname, scale, is_centered)
 		rgb(199,0,244),
 		rgb(58,233,246),
 	}
+	self.bombs = {}
+
+	-- Screenshake
+	self.shake = 0
+	self.shake_x = 0
+	self.shake_y = 0
+
+	self.do_bomb_reveal_anim = false
+	self.bomb_reveal_timer = 0
+	self.random_bomb_index = 1
+end
+
+function Board:reset()
+	self.is_generated = false
+	self.game_over = false
+	self.is_win = false
+	self.remaining_flags = self.number_of_bombs
+	self.number_of_broken_tiles = 0
+	self.do_bomb_reveal_anim = false
+	self.bombs = {}
+	self.random_bomb_index = 1
+	self:reset_board()
 end
 
 function Board:update(dt)
@@ -75,6 +97,22 @@ function Board:update(dt)
 	-- Compute percentage
 	local ratio = self.number_of_broken_tiles / (self.w * self.h - self.number_of_bombs)
 	self.percentage_cleared = math.ceil(100 * ratio)
+
+	-- Update screenshake
+	self.shake = math.max(0, self.shake - dt*10)
+	self.shake_x = random_neighbor(self.shake)
+	self.shake_y = random_neighbor(self.shake)
+
+	-- Gradually reveal bombs
+	self.bomb_reveal_timer = self.bomb_reveal_timer - dt
+	if self.do_bomb_reveal_anim and self.bomb_reveal_timer < 0 then
+		self.bomb_reveal_timer = random_range(0.05, 0.2)
+		self:reveal_random_bomb()
+
+		if self.random_bomb_index > #self.bombs then
+			self.do_bomb_reveal_anim = false
+		end
+	end
 end
 
 function Board:mousepressed(x, y, button)
@@ -110,20 +148,35 @@ function Board:on_button2(tx, ty, is_valid)
 	end
 end
 
+function Board:on_button3(tx, ty, is_valid)
+	if is_valid then
+		self:fast_reveal(tx, ty)
+	end
+end
+
 function Board:draw(draw_selection)
+	-- Update tile size with own scale
 	self.tile_size = self.default_tile_size * self.scale
+	-- Get currently hovered tile
 	local hov_x, hov_y = self:get_selected_tile()
 
+	-- Draw all tiles
 	for iy=0,self.h-1 do
 		for ix=0,self.w-1 do
 			local tile = self.board[iy][ix]
 			
-			local x = self.x + ix * self.tile_size 
-			local y = self.y + iy * self.tile_size
+			-- Screenshake 
+			local ox = self.shake_x
+			local oy = self.shake_y
 
+			local x = self.x + ix * self.tile_size + ox
+			local y = self.y + iy * self.tile_size + oy
+
+			-- Draw selection
 			local is_select = false
 			if draw_selection then  is_select = (ix == hov_x and iy == hov_y)  end
 
+			-- Draw tile
 			tile:draw(self, x, y, self.scale, self.tile_size, is_select)
 		end
 	end
@@ -156,18 +209,62 @@ end
 
 function Board:reveal_tile(x, y)
 	local tile = self.board[y][x]
-	local success = tile:set_hidden(false)
-	
+	if not tile.is_hidden then   return    end
 
 	if tile.val == 0 then 
 		-- Recursively clear tiles around if it's empty
-		self:recursive_reveal_board(x,y)
+		self:recursive_reveal_board(x,y) 
+		-- Screenshake (boardshake??) + SFX
+		self:screenshake(3)
+		audio:play(sfx.generate)
+
+	else
+		local success = tile:reveal(true)
+		
+		-- Game overs if it's a bomb
+		if tile.is_bomb then
+			self:on_game_over(x, y)
+		end
+	end
+end
+
+function Board:fast_reveal(tx, ty)
+	-- Fast reveal reveals non-flagged tiles if the digit of the tile is the
+	-- same as the number of flags around it.
+	local tile = self:get_board(tx, ty)
+	-- Count the number of flagged tiles
+	local n = 0
+	for ox = -1, 1 do
+		for oy = -1, 1 do
+			if self:is_valid_coordinate(tx+ox, ty+oy) then
+				if self:get_board(tx+ox, ty+oy).is_flagged then
+					n = n + 1
+				end
+			end
+		end
 	end
 
-	-- Game overs if it's a bomb
-	if tile.is_bomb then
-		self:on_game_over()
+	if n ~= tile.val then   return    end
+
+	-- If number of flagged tiles is the same as number on tile,
+	-- fast reveal non-flagged tiles
+	for ox = -1, 1 do
+		for oy = -1, 1 do
+			if self:is_valid_coordinate(tx+ox, ty+oy) then
+				local tile = self:get_board(tx+ox, ty+oy)
+				if not tile.is_flagged and tile.is_hidden then
+					self:reveal_tile(tx+ox, ty+oy)
+				end
+			end
+		end
 	end
+end
+
+function Board:reveal_random_bomb()
+	local bomb = self.bombs[self.random_bomb_index]
+	self:get_board(bomb.x, bomb.y):reveal_bomb()
+	
+	self.random_bomb_index = self.random_bomb_index + 1
 end
 
 function Board:toggle_flag(x, y)
@@ -181,20 +278,11 @@ function Board:get_flag(x, y)
 	return self.board[y][x]:get_flag()
 end
 
-function Board:reset()
-	self.is_generated = false
-	self.game_over = false
-	self.is_win = false
-	self.remaining_flags = self.number_of_bombs
-	self.number_of_broken_tiles = 0
-	self:reset_board()
-end
-
 function Board:reset_board()
 	for x=0,self.w-1 do
 		for y=0,self.h-1 do
 			self.board[y][x].val = 0
-			self.board[y][x]:set_hidden(true)
+			self.board[y][x].is_hidden = true
 			self.board[y][x]:set_bomb(false)
 			self.board[y][x]:set_flag(false)
 		end
@@ -218,19 +306,20 @@ function Board:check_if_winning()
 	return true
 end
 
-function Board:on_game_over()
+function Board:on_game_over(x,y)
 	if not self.game_over then
 		self.game_over = true
 		if self.parent.on_game_over then  self.parent:on_game_over(self.socket)  end
+		
+		self:screenshake(5)
+		self.do_bomb_reveal_anim = true
 	end
+
 end
 
 function Board:generate_board(start_x, start_y, seed)
 	seed = seed or self.seed
 	local rng = love.math.newRandomGenerator(seed)
-
-	-- SFX
-	audio:play(sfx.generate)
 
 	-- Reset board
 	self:reset()
@@ -255,8 +344,9 @@ function Board:generate_board(start_x, start_y, seed)
 
 				self.board[y][x]:set_bomb(true)
 				self.number_of_bombs = self.number_of_bombs + 1
-				self.board[y][x]:set_bomb_color(self:get_random_bomb_color())
+				self.board[y][x]:set_bomb_color(self:get_random_bomb_color(x,y))
 				self:update_adjacent_tiles(x, y)
+				table.insert(self.bombs, {x=x, y=y, tile=self.board[y][x]})
 				i = i - 1
 
 			end
@@ -264,7 +354,9 @@ function Board:generate_board(start_x, start_y, seed)
 		iters = iters - 1
 	end
 
-	self:recursive_reveal_board(start_x, start_y)
+	-- Break the first tile
+	-- This will have the consequence of recursively revealing tiles
+	self:reveal_tile(start_x, start_y)
 end
 
 function Board:update_adjacent_tiles(x, y)
@@ -283,7 +375,7 @@ end
 
 function Board:recursive_reveal_board(x, y)
 	-- Reveal tile
-	self.board[y][x]:set_hidden(false)
+	self.board[y][x]:reveal(false)
 	
 	-- Reveal tiles around
 	for oy = -1, 1 do
@@ -293,11 +385,11 @@ function Board:recursive_reveal_board(x, y)
 
 				local tile = self.board[y+oy][x+ox]
 				local is_hidden = tile.is_hidden
-				tile:set_hidden(false)
 				if is_hidden and tile.val == 0 then
 					-- Recursively reveal tiles around
 					self:recursive_reveal_board(x+ox, y+oy)
 				end
+				tile:reveal(false)
 				
 			end
 		end
@@ -324,8 +416,9 @@ function Board:get_color_of_number(num)
 	return self.numbers_palette[num]
 end
 
-function Board:get_random_bomb_color()
-	local r = love.math.random(1, #self.bomb_colors)
+function Board:get_random_bomb_color(x,y)
+	local rng = love.math.newRandomGenerator(self.seed + y*self.w + x)
+	local r = rng:random(1, #self.bomb_colors)
 	return self.bomb_colors[r]
 end
 
@@ -333,7 +426,12 @@ function Board:set_bomb(val, x, y)
 	self.board[y][x].is_bomb = val
 end
 
+function Board:screenshake(val)
+	self.shake = val
+end
+
 function Board:item_earthquake(seed)
+	-- Currently unused: earthquake item that removes half the flags
 	-- Remove half the flags 
 	local rng = love.math.newRandomGenerator(seed)
 	for ix=0,self.w-1 do

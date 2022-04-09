@@ -72,6 +72,9 @@ end
 function Game:on_button2()
 	if self.interface.on_button2 then  self.interface:on_button2(tx, ty, is_valid)  end
 end
+function Game:on_button3()
+	if self.interface.on_button3 then  self.interface:on_button3(tx, ty, is_valid)  end
+end
 
 function Game:keypressed(key)
 	if self.interface.keypressed then  self.interface:keypressed(key)  end

@@ -3,6 +3,7 @@ local Game = require "game"
 local Board = require "board"
 local NetworkManager = require "network"
 local sfx = require "sfx"
+require "constants"
 
 -- Global parameters
 WINDOW_WIDTH = 400
@@ -21,6 +22,9 @@ function love.load(arg)
 	
 	-- Initialize log files for errors & stuff
 	local success, message = love.filesystem.write("log.txt", "")
+	if not love.filesystem.getInfo("serverip.txt") then 
+		love.filesystem.write("serverip.txt", DEFAULT_SERVERIP_TXT)
+	end
 
 	-- If ran from the command line with "-server" flag, then run as server
 	if arg and arg[1] == "-server" then

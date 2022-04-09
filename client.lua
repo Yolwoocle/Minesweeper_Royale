@@ -3,6 +3,7 @@ local Class = require "class"
 local Board = require "board"
 local font = require "font"
 local img = require "images"
+local utf8 = require "lua-utf8"
 require "constants"
 
 local udp = socket.udp()
@@ -17,7 +18,10 @@ function Client:init()
 
 	self.is_win = false
 	self.board = Board:new(self)
-	self.name = self:get_name()
+	
+	local name = self:get_system_name()
+	self:set_name(name)
+	self.name = self.name or "hi_i_exist"..tostring(love.math.random(0,10000))
 	love.window.setTitle("Minesweeper Royale - "..self.name)
 
 	-- Networking
@@ -65,10 +69,10 @@ function Client:init_socket()
 end
 
 function Client:update(dt)
+	self.timer = self.timer - dt
 	if self.is_waiting then
-
 	else	
-		self.timer = self.timer - dt
+	--	self.timer = self.timer - dt
 	end
 
 	self.board:update(dt)
@@ -120,7 +124,9 @@ function Client:draw_ui()
 	local time = clamp(0, math.ceil(self.timer),99999)
 	---- Flash text in red if less than 30 secs
 	love.graphics.setColor(1,1,1)
-	if self.timer <= 30 and self.timer%1 > .5 then   love.graphics.setColor(1,0,0)   end
+	if 0 < self.timer  and  self.timer <= 30  and  self.timer%1 > .5 then   
+		love.graphics.setColor(1,0,0) 
+	end
 	---- Clock icon & text
 	love.graphics.draw(img.clock, dx, y)
 	love.graphics.print(time, dx+32, y)
@@ -158,10 +164,13 @@ function Client:mousepressed(x,y,button)
 		self:on_button1(tx, ty, is_valid)
 	elseif button == 2 then
 		self:on_button2(tx, ty, is_valid)
+	elseif button == 3 then
+		self:on_button3(tx, ty, is_valid)
 	end
 end
 
 function Client:on_button1(tx, ty, is_valid)
+	-- Left click: break tiles
 	if self.board.on_button1 and not self.is_waiting then  
 		local broken = self.board:on_button1(tx, ty, is_valid)  
 		
@@ -170,10 +179,10 @@ function Client:on_button1(tx, ty, is_valid)
 			self:queue_request("break", tx," ",ty," ",bool_to_int(is_valid))
 		end
 	end
-
 end
 
 function Client:on_button2(tx, ty, is_valid)
+	-- Right click : set flag
 	local placed_flag
 	if is_valid and not self.is_waiting then  
 		placed_flag = self.board:toggle_flag(tx, ty)
@@ -186,6 +195,15 @@ function Client:on_button2(tx, ty, is_valid)
 		self:queue_request_set_flag(placed_flag, tx, ty, is_valid)
 	end
 end
+
+function Client:on_button3(tx, ty, is_valid)
+	if self.board.on_button3 and not self.is_waiting then  
+		-- Fast reveal on middle click
+		self.board:on_button3(tx, ty, is_valid)  
+		self:queue_request("fastreveal", tx," ",ty," ",bool_to_int(is_valid))
+	end
+end
+
 
 function Client:queue_request_set_flag(val, tx, ty, is_valid)
 	table.insert(self.message_queue, {
@@ -215,22 +233,24 @@ function Client:update_socket(dt)
 	end
 
 	-- If not connected and timeout time ran out, try another server
-	if not self.is_connected and self.timeout_timer > self.timeout_max then
-		if self.fallback_number <= #self.fallback_servers then
-			-- Attempt to connect to fallback servers defined in the `serverip.txt` file
-			self.timeout_timer = 0
-			local curserv = self.fallback_servers[self.fallback_number]
-			print("Attempting next fallback server: number",self.fallback_number+1)
-			notification("Impossible de se connecter à \"",curserv.name,"\"")
-			self:attempt_next_connection()
-		
-		else
-			-- If all fallback servers have been tried
-			self.timeout_timer = 0
-			self.do_timeout = false
-			notification("Impossible de se connecter au serveur.")
-			notification("Merci de contacter l'administrateur.")
-			self.waiting_msg = "Connection impossible, contactez l'administrateur"
+	if self.do_timeout then
+		if not self.is_connected and self.timeout_timer > self.timeout_max then
+			if self.fallback_number <= #self.fallback_servers then
+				-- Attempt to connect to fallback servers defined in the `serverip.txt` file
+				self.timeout_timer = 0
+				local curserv = self.fallback_servers[self.fallback_number]
+				print("Attempting next fallback server: number",self.fallback_number+1)
+				notification("Impossible de se connecter à \"",curserv.name,"\"")
+				self:attempt_next_connection()
+			
+			else
+				-- If all fallback servers have been tried
+				self.timeout_timer = 0
+				self.do_timeout = false
+				notification("Impossible de se connecter au serveur.")
+				notification("Merci de contacter l'administrateur.")
+				self.waiting_msg = "Connection impossible, contactez l'administrateur (-_-'')"
+			end
 		end
 	end
 
@@ -275,8 +295,7 @@ function Client:update_socket(dt)
 
 			if cmd == 'assignid' then
 				self.id = tonumber(parms)
-				self.waiting_msg = MSG_PLEASE_WAIT_SERVER
-				notification(MSG_CONNECTION_ESTABLISHED_WITH_SERVER)
+				self:on_connection_established()
 
 			elseif cmd == 'assignname' then
 				self.name = parms
@@ -302,17 +321,15 @@ function Client:update_socket(dt)
 				self:begin_game(max_timer, seed)
 			
 			elseif cmd == "stopgame" then
+				self.timer = 0
 				self.game_begin = false
 				self.is_waiting = true
-				self.waiting_msg = MSG_GAME_ENDED_PLEASE_WAIT_FOR_ADMIN
+				self.waiting_msg = "Partie terminée ! Attendez l'administrateur."
 				print("Game ended. GG!")
 
 			elseif cmd == "listranks" then
 				-- Update other player's ranks
 				local ranks = split_str(parms, " ") 
-				
-				print("--im gonna listranks--")
-				for k,v in pairs(ranks) do print("listranks",k,v) end
 
 				self.rankings = {}
 				for i=1, #ranks, 4 do
@@ -348,8 +365,12 @@ function Client:update_socket(dt)
 				self.board:item_earthquake(seed)
 
 			elseif cmd == "quit" then
-				notification(MSG_SERVER_STOPPED_OR_RESTARTED)
-				notification(MSG_PRESS_F5_TO_RESTART)
+				notification("Serveur stoppé ou redémarré.")
+				notification("Veuillez appuyer sur 'f5' pour se reconnecter.")
+				self.game_begin = false
+				self.do_timeout = false
+				self.is_waiting = true
+				self.waiting_msg = "Serveur stoppé. Appuyez 'f5' pour se reconnecter."
 
 			elseif cmd == "chat" then
 				local msg = parms
@@ -367,7 +388,7 @@ function Client:update_socket(dt)
 			self.is_connected = false
 
 			if msg ~= self.waiting_msg then  
-				notification(string.format("%s \"%s\"", MSG_ERROR_COLON, msg))
+				--notification(string.format("%s \"%s\"", "Erreur:", msg))
 			end
 			--self.waiting_msg = msg
 
@@ -394,11 +415,15 @@ function Client:read_server_ips(default)
 	local ips = {}
 	
 	local local_ip = self:get_local_ip()
-	table.insert(ips, {ip=local_ip, name=MSG_LOCAL_NETWORK})
+	if local_ip then
+		table.insert(ips, {ip=local_ip, name=MSG_LOCAL_NETWORK})
+	else
+		print("Failed to read local IP, instead got ",local_ip)
+	end
 
 	--table.insert(ips, {ip="0.0.0.0", name="Réseau local"})
 	for line in love.filesystem.lines("serverip.txt") do
-		if string.sub(line,1,1) ~= "#" then
+		if string.sub(line,1,1) ~= "#" and #line > 0 then
 			-- Split the string
 			local s = split_str(line, " ")
 			local ip, name, port = s[1], s[2], s[3]
@@ -426,6 +451,8 @@ function Client:join_server(address, port, name)
 	--notification("En train d'essayer de se connecter au serveur...")
 	notification(string.format("Connection à \"%s\" (%s)...",name,address))
 	print(string.format("Attempting to connect to %s (%s:%s)",name,address,tostring(port)))
+	self.waiting_msg = "Connection au serveur... ~('-')~"
+	self.timeout_timer = 0
 
 	print("Configured address and port to", address, port)
 	self.address = address
@@ -550,14 +577,14 @@ end
 function Client:on_win()
 	self.is_win = true
 	self.is_waiting = true
-	self.waiting_msg = "Vous avez gagné! En attente des autres joueurs..."
+	self.waiting_msg = "\\(^o^)/ Vous avez gagné! Veuillez attendre la fin de la partie."
 end
 
 function Client:on_game_over()
 	-- Check for game over/victory
 	self.game_over = true
 	self.is_waiting = true
-	self.waiting_msg = "Perdu ! Veuillez attendre la fin de la partie."
+	self.waiting_msg = "(X_X) Perdu ! Veuillez attendre la fin de la partie."
 end
 
 function Client:draw_player_rankings(x,y)
@@ -596,7 +623,7 @@ function Client:draw_player_rankings(x,y)
 	end
 end
 
-function Client:get_name()
+function Client:get_system_name()
 	local opsys = love.system.getOS( )
 
 	local name = "Hello_:D"..tostring(love.math.random(0,999))
@@ -606,8 +633,43 @@ function Client:get_name()
 		name = os.getenv("USER")
 	end
 
-	-- Remove the separator character (" ") defined in constants.lua
+	return name
+end
+
+function Client:set_name(name)
+	name = name or self:get_system_name()
+	-- Remove the separator character (" ")
 	name = name:gsub(" ","_")
+	name = name:gsub("%%","-")
+	-- This is a non extaustive list
+	name = name:gsub("à","a")
+	name = name:gsub("ä","a")
+	name = name:gsub("â","a")
+	name = name:gsub("é","e")
+	name = name:gsub("è","e")
+	name = name:gsub("ë","e")
+	name = name:gsub("ï","i")
+	name = name:gsub("î","i")
+	name = name:gsub("ö","o")
+	name = name:gsub("ô","o")
+	name = name:gsub("ù","u")
+	name = name:gsub("ü","u")
+	name = name:gsub("û","u")
+	-- Remove non-ASCII characters
+	nn = ""
+	for i=1, utf8.len(name) do
+		local chr = utf8.sub(name,i,i)
+		local byte = utf8.byte(chr)
+		if byte > 128 then
+			chr = "-"
+		end
+		nn = nn..chr
+	end
+	name = nn
+	
+	self.name = name
+	love.window.setTitle("Minesweeper Royale - "..self.name)
+
 	return name
 end
 
@@ -635,7 +697,25 @@ function Client:get_random_player()
 	return nil
 end
 
+function Client:on_connection_established(ip, port, name)
+	self.waiting_msg = "Veuillez attendre le serveur \\('o')/"
+	notification("Connection établie avec le serveur :D")
+
+	-- Add server to serverip.txt file 
+	-- Check if already in fallback list
+	local exists = false
+	for k,server in pairs(self.fallback_servers) do
+		if server.ip == ip then
+			exists = true
+			return
+		end
+	end
+	-- Append
+	--love.filesystem.append("serverip.txt", string.format("\n%s %s %s", ip, name, tostring(port)))
+end
+
 function Client:on_new_chat_msg(msg)
+	print("on_new_chat_msg", msg)
 	self:queue_request("chat", msg)
 end
 
@@ -643,7 +723,32 @@ end
 ---- Commands ----
 ------------------
 
-function Client:cmd_connect()
+function Client:cmd_connect(parms)
+	local ip = parms[1]
+	if not ip then   
+		chat:new_msg("%rErreur: aucune addresse fournie (format: client <ip> [port] [nom])")
+		return 
+	end
+	local port = parms[2] or 12345
+	local name = parms[3] or tostring(ip)
+	self:join_server(ip, port, name)
+end
+
+function Client:cmd_ping(parms)
+	self:queue_request("ping 123")
+end
+
+function Client:cmd_name(parms)
+	local new_name = concatsep(parms, " ")
+	if not parms or #parms == 0 or utf8.len(new_name)==0 then
+		chat:new_msg("%rErreur: aucun nom fourni (format: name <nouveau_nom>)")
+		return
+	end
+	self:set_name(new_name)
+	self:queue_request("rename", self.name)
+end
+
+function Client:cmd_kick(parms)
 
 end
 

@@ -15,7 +15,7 @@ function Chat:init(parent)
 	self.chat = {}
 	self.display_chat = false
 	self.block_next_input = false
-	self.max_msg = 20  --MAximum nb of msgs that the chat can store
+	self.max_msg = 20  --Maximum nb of msgs that the chat can store
 	
 	self.input = ""
 	self.cursor_pos = 0
@@ -31,8 +31,6 @@ function Chat:update(dt)
 			table.remove(self.chat, 1)
 		end
 	end
-
-	print("héy", utf8.sub("héy",1,2))
 end
 
 function Chat:draw()
@@ -182,28 +180,33 @@ function Chat:send_input()
 	if utf8.sub(self.input, 1,1) == "/" then
 		-- Submit commands
 		local text = utf8.sub(self.input, 2,-1)
-		self:send_command(split_str(text, " "))
+		self:send_command(text)
 	else
 		-- Submit chat message
 		local username = self.parent.name
 		local msg = concat("<",username,"> ",self.input)
 		self:new_msg(msg)
+		self.parent:on_new_chat_msg(msg)
 	end
+
 	self.input = ''
 	self.display_chat = false
 	self.cursor_pos = 0
-
-	self.parent:on_new_chat_msg(msg)
 end
 
-function Chat:send_command(a)
-	local cmd = a[1]
-	table.remove(a, 1)
-	local parms = a
+function Chat:send_command(text)
+	local arguments = split_str(text, " ")
+	local cmd = arguments[1]
+	table.remove(arguments, 1)
+	local parms = arguments
 
 	if self.parent.type == "client" then
 		if cmd == "connect" then
 			self.parent:cmd_connect(parms)
+		elseif cmd == "ping" then
+			self.parent:cmd_ping(parms)
+		elseif cmd == "name" or cmd == "nick" then
+			self.parent:cmd_name(parms)
 		end
 
 	elseif self.parent.type == "server" then

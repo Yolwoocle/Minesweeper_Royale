@@ -1,6 +1,6 @@
-require "util"
 local Class = require "class"
 local img = require "images"
+require "util"
 
 local Particle = Class:inherit()
 

@@ -26,6 +26,19 @@ function ParticleSystem:new_thrown_particle(img,x,y,s)
 	self:new_particle(img, x, y, 0, s, dx, dy, dr, ds, g, fx) 
 end
 
+function ParticleSystem:new_confetti(img,x,y,s,number)
+	for i=1, number do
+		local s = s or 1
+		local dx = random_neighbor(1)
+		local dy = random_range(0,-3)
+		local dr = random_neighbor(0.05)
+		local ds = random_range(0.2, 0.3)
+		local g = 0.06
+		local fx = 0.8
+		self:new_particle(img, x, y, 0, s, dx, dy, dr, ds, g, fx) 
+	end
+end
+
 function ParticleSystem:update(dt)
 	for i,ptc in pairs(self.particles) do
 		ptc:update(dt)

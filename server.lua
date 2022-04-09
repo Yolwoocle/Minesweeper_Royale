@@ -162,6 +162,13 @@ function Server:update(dt)
 					self.clients[socket].board:set_flag(tx, ty, set)
 				end
 
+			elseif cmd == "fastreveal" then
+				local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
+				tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
+
+				local client = self.clients[socket]
+				client.board:on_button3(tx, ty, is_valid)
+
 			elseif cmd == "chat" then
 				local msg = parms
 				chat:new_msg(msg)
@@ -173,7 +180,13 @@ function Server:update(dt)
 				end
 
 			elseif cmd == "ping" then
-				udp:sendto("chat Pong!", msg_or_ip,  port_or_nil)
+				udp:sendto("chat %yServer: Pong!", msg_or_ip,  port_or_nil)
+
+			elseif cmd == "rename" then
+				local new_name = parms
+				local old_name = self.clients[socket].name
+				self.clients[socket].name = new_name
+				self:send_chat_message(concat("%y",old_name," s'est renommé à ",new_name))
 
 			elseif cmd == "stop" then
 				self:stop()
@@ -202,7 +215,7 @@ function Server:update(dt)
 		self:assign_ranks_to_players()
 		-- Update all boards
 		for socket,client in pairs(self.clients) do
-			client.board:update()
+			client.board:update(dt)
 		end
 
 		-- If timer reaches 0, notify all clients that the game has ended
@@ -244,6 +257,8 @@ function Server:draw()
 		-- If the game hasn't begun, draw waiting screen
 		self:draw_waiting_screen()
 	end
+
+	chat:draw()
 end
 
 function Server:keypressed(key)
@@ -403,8 +418,13 @@ function Server:draw_waiting_screen()
 	love.graphics.rectangle("fill",x,y,w,h)
 	love.graphics.setColor(1,1,1)
 	local s = self.number_of_clients<=1 and "" or "s"
-	local txt = concat(self.number_of_clients," joueur",s," connecté",s,". Appuyez sur 'S' pour démarrer la partie.")
+	local txt = concat(self.number_of_clients," joueur",s," connecté",s,".")
+	
 	draw_centered_text(txt, x,y,w,h)
+	love.graphics.setColor(.5,.5,.5)
+	draw_centered_text("Appuyez sur 'S' pour démarrer la partie.",x,y,w,h+100,0,0.8)
+	
+	love.graphics.setColor(1,1,1)
 end
 
 function Server:check_if_all_players_waiting()

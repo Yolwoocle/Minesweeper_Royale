@@ -82,14 +82,37 @@ function Tile:set_val(val)
 end
 
 function Tile:set_hidden(val)
-	local output
-	if (not val) and self.is_hidden then  
-		output = true
-		self:on_revealed()
-	end
 	self.is_hidden = val
+end
+
+function Tile:reveal(play_sfx)
+	local output
+	if play_sfx == nil then   play_sfx = true   end
+	if self.is_hidden then  
+		output = true
+		self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
+		-- Particles
+		--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
+		self:particle({img.square, COL_HIDDEN}) 
+		
+		-- SFX
+		if play_sfx then
+			local sound = sfx.table_break[self.val]
+			if not sound then   sound = sfx.table_break[1]   end
+			audio:play(sound)
+		end
+
+		--If it's a bomb, play SFX & particles
+		if self.is_bomb then
+			--audio:play(sfx.explode, 0.3, 2)
+			self:confetti({img.square, self.bomb_color}, 10)
+		end
+	end
+	self.is_hidden = false
 	return output
 end
+--]]
+
 
 function Tile:is_hidden(val)
 	return self.is_hidden
@@ -118,7 +141,7 @@ function Tile:toggle_flag()
 		self:set_flag(true)
 		self.board.remaining_flags = self.board.remaining_flags - 1  
 		if self.is_hidden then 
-			audio:play_random(sfx.flag_place_list)
+			audio:play(sfx.flag_place)
 		end
 		return true
 	end
@@ -129,23 +152,19 @@ function Tile:set_flag(v)
 		self.is_flagged = v
 	end
 end
+
 function Tile:get_flag()
 	return self.is_flagged
 end
 
-function Tile:on_revealed()
-	self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
-	-- Particles
-	--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
-	self:particle({img.square, COL_HIDDEN}) 
+function Tile:reveal_bomb()
+	self.is_hidden = false
+	--self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
 	
-	-- SFX
-	audio:play_random(sfx.break_list)
-
 	--If it's a bomb, play SFX & particles
 	if self.is_bomb then
-		audio:play_random(sfx.bomb_explode_list)
-		self:confetti({img.square, self.bomb_color}, 0.5, 10)
+		audio:play(sfx.explode, 0.5, 1.5	)
+		self:confetti({img.square, self.bomb_color}, 10)
 	end
 end
 
@@ -157,21 +176,22 @@ function Tile:particle(img, scale, number)
 	local x = self.board.x + (self.ix+.5)*self.board.tile_size
 	local y = self.board.y + (self.iy+.5)*self.board.tile_size
 	local s = self.board.scale * scale
+
+	particles:new_thrown_particle(img,x,y,s)
 end
 
-function Tile:confetti(number)
+function Tile:confetti(img, number, scale)
 	number = number or 1
+	scale = scale or 1
 
-	local scale = random_range(0.3,0.7)
+	local scale = scale * random_range(1,1)
 
 	local ts2 = self.board.tile_size/2
 	local x = self.board.x + (self.ix+.5)*self.board.tile_size
 	local y = self.board.y + (self.iy+.5)*self.board.tile_size
 	local s = self.board.scale * scale
 
-	for i=1, number do
-		particles:new_thrown_particle(img,x,y,s)
-	end
+	particles:new_confetti(img,x,y,s, number)
 end
 
 return Tile
