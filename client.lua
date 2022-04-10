@@ -18,7 +18,8 @@ function Client:init()
 
 	self.is_win = false
 	self.board = Board:new(self)
-	
+	self.board.ox = 0
+
 	local name = self:get_system_name()
 	self:set_name(name)
 	self.name = self.name or "hi_i_exist"..tostring(love.math.random(0,10000))
@@ -158,6 +159,42 @@ function Client:draw_ui()
 	end
 end
 
+function Client:draw_player_rankings(x,y)
+	love.graphics.setColor(1,1,1)
+	for i,player in pairs(self.rankings) do
+		local dy = y + (i-1)*(32+8)
+		local ox = 0
+
+		-- If self, draw white rectangle
+		local w, h = 300, 32
+		if player.is_self then 
+			love.graphics.rectangle("fill", x-4, dy-4, w+8, h+8)
+			love.graphics.setColor(COL_BLACK)
+		end
+
+		-- Icons for win/death
+		if player.state == "game_over" then
+			love.graphics.draw(img.skull, x+40, dy)
+			ox = ox + 40
+		
+		elseif player.state == "win" then
+			love.graphics.draw(img.crown, x+40, dy)
+			ox = ox + 40
+
+		end
+
+		-- Player name 
+		love.graphics.print(player.name, x+ox+40, dy)
+		-- Player percentage
+		print_justify_right(concat(player.percentage,"%"), x+w, dy)
+		
+
+		-- Rank
+		love.graphics.setColor(1,1,1)
+		draw_rank_medal(player.rank, {.4,.4,.4}, x, dy)
+	end
+end
+
 function Client:mousepressed(x,y,button)	
 	local tx, ty, isclicked, is_valid = self.board:get_selected_tile()
 	if button == 1 then
@@ -218,11 +255,13 @@ function Client:queue_request(cmd, ...)
 end
 
 function Client:keypressed(key)
+	--[[
 	if key == "w" and #self.rankings > 1 then
 		local randply = self:get_random_player()
 		notification("TEST envoyer rafale ",randply)--REMOVEME
 		self:queue_request("itemearthquake", randply)
 	end
+	--]]
 end
 
 function Client:update_socket(dt)
@@ -587,42 +626,6 @@ function Client:on_game_over()
 	self.waiting_msg = "(X_X) Perdu ! Veuillez attendre la fin de la partie."
 end
 
-function Client:draw_player_rankings(x,y)
-	love.graphics.setColor(1,1,1)
-	for i,player in pairs(self.rankings) do
-		local dy = y + (i-1)*(32+8)
-		local ox = 0
-
-		-- If self, draw white rectangle
-		local w, h = 250, 32
-		if player.is_self then 
-			love.graphics.rectangle("fill", x-4, dy-4, w+8, h+8)
-			love.graphics.setColor(COL_BLACK)
-		end
-
-		-- Icons for win/death
-		if player.state == "game_over" then
-			love.graphics.draw(img.skull, x+40, dy)
-			ox = ox + 40
-		
-		elseif player.state == "win" then
-			love.graphics.draw(img.skull, x+40, dy)
-			ox = ox + 40
-
-		end
-
-		-- Player name 
-		love.graphics.print(player.name, x+ox+40, dy)
-		-- Player percentage
-		print_justify_right(concat(player.percentage,"%"), x+w, dy)
-		
-
-		-- Rank
-		love.graphics.setColor(1,1,1)
-		draw_rank_medal(player.rank, {.4,.4,.4}, x, dy)
-	end
-end
-
 function Client:get_system_name()
 	local opsys = love.system.getOS( )
 
@@ -666,7 +669,8 @@ function Client:set_name(name)
 		nn = nn..chr
 	end
 	name = nn
-	
+	name = utf8.sub(name, 1, 16)
+
 	self.name = name
 	love.window.setTitle("Minesweeper Royale - "..self.name)
 

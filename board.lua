@@ -26,9 +26,11 @@ function Board:init(parent, seed, socketname, scale, is_centered)
 	self.scale = scale or 1
 	self.tile_size = self.default_tile_size * self.scale
 
-	-- By default, the board position is centered on the screen
-	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
-	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
+	-- By default, the board position is centered on the screen, minus offset
+	self.ox = 0
+	self.oy = 0
+	self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2 - self.ox
+	self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2	- self.oy
 
 	self.is_centered = is_centered
 	self.is_generated = false
@@ -86,8 +88,8 @@ function Board:update(dt)
 
 	-- Center the board on screen
 	if self.is_centered then
-		self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2
-		self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2
+		self.x = (WINDOW_WIDTH - self.w*self.tile_size) / 2 - self.ox
+		self.y = (WINDOW_HEIGHT- self.h*self.tile_size) / 2 - self.oy
 	end
 
 	-- Update size size
@@ -96,7 +98,7 @@ function Board:update(dt)
 
 	-- Compute percentage
 	local ratio = self.number_of_broken_tiles / (self.w * self.h - self.number_of_bombs)
-	self.percentage_cleared = math.ceil(100 * ratio)
+	self.percentage_cleared = math.floor(100 * ratio)
 
 	-- Update screenshake
 	self.shake = math.max(0, self.shake - dt*10)
@@ -110,6 +112,7 @@ function Board:update(dt)
 		self:reveal_random_bomb()
 
 		if self.random_bomb_index > #self.bombs then
+			self:reveal_incorrect_flags()	
 			self.do_bomb_reveal_anim = false
 		end
 	end
@@ -267,7 +270,22 @@ function Board:reveal_random_bomb()
 	self.random_bomb_index = self.random_bomb_index + 1
 end
 
+function Board:reveal_incorrect_flags()
+	for ix=0, self.w-1 do
+		for iy=0, self.h-1 do
+			local tile = self:get_board(ix,iy)
+			if tile.is_flagged and not tile.is_bomb then
+				tile.is_incorrect_flag = true
+				tile:toggle_flag()
+				print("INCORRECTFLAG")
+			end
+
+		end
+	end
+end
+
 function Board:toggle_flag(x, y)
+	if not self.board[y][x].is_hidden then   return false   end
 	local newval = self.board[y][x]:toggle_flag()
 	return newval
 end
@@ -283,6 +301,7 @@ function Board:reset_board()
 		for y=0,self.h-1 do
 			self.board[y][x].val = 0
 			self.board[y][x].is_hidden = true
+			self.board[y][x].is_incorrect_flag = false
 			self.board[y][x]:set_bomb(false)
 			self.board[y][x]:set_flag(false)
 		end

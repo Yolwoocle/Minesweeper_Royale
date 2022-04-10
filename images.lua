@@ -16,6 +16,7 @@ end
 
 local img = {}
 img.flag = load_image("flag.png")
+img.incorrect_flag = load_image("incorrect_flag.png")
 img.clock = load_image("clock.png")
 img.circle = load_image("circle.png")
 img.square = load_image("square.png")

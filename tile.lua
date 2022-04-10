@@ -15,6 +15,7 @@ function Tile:init(board, ix, iy, x, y, val)
 	self.is_bomb = false
 	self.is_hidden = true
 	self.is_flagged = false
+	self.is_incorrect_flag = false
 	self.show_number = true
 	self.scale = scale
 	self.is_lighter = ((ix + iy)%2 == 0)
@@ -73,6 +74,11 @@ function Tile:draw(board, x, y, scale, tile_size, is_select)
 	if self.is_flagged then
 		love.graphics.setColor(1,1,1)
 		love.graphics.draw(img.flag, x, y, 0, scale)
+	end
+	if self.is_incorrect_flag then
+		love.graphics.setColor(1,1,1)
+		love.graphics.draw(img.incorrect_flag, x, y, 0, scale)
+
 	end
 	love.graphics.setColor(1,1,1)
 end
@@ -158,13 +164,16 @@ function Tile:get_flag()
 end
 
 function Tile:reveal_bomb()
+	if self.is_flagged then
+		return false
+	end
+
 	self.is_hidden = false
-	--self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
-	
 	--If it's a bomb, play SFX & particles
 	if self.is_bomb then
-		audio:play(sfx.explode, 0.5, 1.5	)
+		audio:play(sfx.explode, 0.5, 1.5)
 		self:confetti({img.square, self.bomb_color}, 10)
+		return true
 	end
 end
 
