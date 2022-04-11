@@ -19,6 +19,30 @@ function Chat:init(parent)
 	
 	self.input = ""
 	self.cursor_pos = 0
+
+	self.show_command_list = false
+
+	self.client_commands = {
+		["connect"] = function(self, parms)
+			self.parent:cmd_connect(parms)
+		end,
+		
+		["ping"] = function(self, parms)
+			self.parent:cmd_ping(parms)
+		end,
+		
+		["name"] = function(self, parms)
+			self.parent:cmd_name(parms)
+		end,
+		
+		["folder"] = function(self, parms)
+			-- Copies to the clipboard the path to the screeshots folder 
+			local filepath = love.filesystem.getSaveDirectory()
+			love.system.setClipboardText(filepath)
+			notification("Chemin du dossier des captures d'écran copié.")
+			return
+		end,
+	}
 end
 
 function Chat:update(dt)
@@ -26,11 +50,15 @@ function Chat:update(dt)
 	for i,msg in pairs(self.chat) do
 		msg.t = msg.t - dt
 	end
+	-- Remove old messages
 	if #self.chat > self.max_msg then
 		for i=self.max_msg, #self.chat-1 do
 			table.remove(self.chat, 1)
 		end
 	end
+
+	-- Command list
+	self.show_command_list = (self.input == "/")
 end
 
 function Chat:draw()
@@ -78,6 +106,14 @@ function Chat:draw()
 				love.graphics.setColor(1,1,1)
 				love.graphics.rectangle("fill", x,y, 2,32)
 			end 
+		end
+	end
+
+	-- Show command list
+	if self.show_command_list then
+		local i = 1
+		for k,cmd in pairs(self.client_commands) do
+			
 		end
 	end
 end
@@ -200,15 +236,14 @@ function Chat:send_command(text)
 	table.remove(arguments, 1)
 	local parms = arguments
 
+	-- Client
 	if self.parent.type == "client" then
-		if cmd == "connect" then
-			self.parent:cmd_connect(parms)
-		elseif cmd == "ping" then
-			self.parent:cmd_ping(parms)
-		elseif cmd == "name" or cmd == "nick" then
-			self.parent:cmd_name(parms)
+		local func = self.client_commands[cmd]
+		if func then
+			func(self, parms)
 		end
 
+	-- Server
 	elseif self.parent.type == "server" then
 		if cmd == "kick" then
 			local user = 
@@ -229,7 +264,7 @@ end
 
 function Chat:parse_color(msg)
 	local col = COL_WHITE
-	if utf8.sub(msg,1,1)=="%" then
+	if utf8.sub(msg,1,1) == "%" then
 		local code = utf8.sub(msg,2,2)
 		msg = utf8.sub(msg,3,-1)
 		

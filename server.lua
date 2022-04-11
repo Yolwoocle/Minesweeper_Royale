@@ -42,7 +42,7 @@ function Server:init()
 
 	-- Timer
 	self.timer = 0
-	self.max_timer = 60--5*60 --5*60 = 300
+	self.max_timer = 5*60 --5*60 = 300
 
 	-- Countdown (3,2,1,GO)
 	self.do_countdown = false
@@ -290,7 +290,11 @@ function Server:keypressed(key)
 	end
 
 	if key == "s" then
-		self:begin_countdown()
+		if love.keyboard.isDown("lshift") then
+			self:begin_game()
+		else
+			self:begin_countdown()
+		end
 	end
 end
 

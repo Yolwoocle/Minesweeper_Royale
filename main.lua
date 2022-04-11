@@ -74,7 +74,12 @@ function love.draw()
 end
 
 function love.keypressed(key)
-	if key == "f5" then
+	if key == "f2" then
+		local filename = os.date('demineur_royale_%Y-%m-%d_%H-%M-%S.png') 
+		love.graphics.captureScreenshot(filename)
+		notification("Capture d'écran capturée. Faites '/folder' pour dévoiler le dossier.")
+
+	elseif key == "f5" then
 		if is_server then
 			if love.keyboard.isDown("lshift") then
 				love.event.quit("restart")

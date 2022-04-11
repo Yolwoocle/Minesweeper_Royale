@@ -935,7 +935,7 @@ function Client:display_help()
 	-- "Back" prompt
 	love.graphics.setColor(COL_YELLOW)
 	love.graphics.draw(img.arrow_left, 8, WINDOW_HEIGHT-8)
-	love.graphics.print("[ H ] Retour", 8+32, WINDOW_HEIGHT-8)
+	love.graphics.print("[ H ] Retour", 8+32, WINDOW_HEIGHT-8-text_h)
 	love.graphics.setColor(COL_WHITE)
 end
 
