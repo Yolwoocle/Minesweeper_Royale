@@ -904,7 +904,6 @@ function Client:display_help()
 	love.graphics.rectangle("fill",0,0,WINDOW_WIDTH, WINDOW_HEIGHT)
 	
 	-- Draw all lines of text
-	love.graphics.setColor(1,1,1,1)
 	local lines = {
 		"--- Comment jouer ---",
 		" ",
@@ -924,6 +923,7 @@ function Client:display_help()
 		" ",
 	}
 
+	love.graphics.setColor(1,1,1,1)
 	local text_h = get_text_height(" ")
 	local h = #lines * text_h
 	local iy = math.floor(SCREEN_HEIGHT/2 - h/2)
@@ -933,10 +933,10 @@ function Client:display_help()
 	end
 
 	-- "Back" prompt
-	love.graphics.setColor(COL_YELLOW)
-	love.graphics.draw(img.arrow_left, 8, WINDOW_HEIGHT-8)
+	love.graphics.setColor(1,1,0,1)
+	love.graphics.draw(img.arrow_left, 8, WINDOW_HEIGHT-8-32)
 	love.graphics.print("[ H ] Retour", 8+32, WINDOW_HEIGHT-8-text_h)
-	love.graphics.setColor(COL_WHITE)
+	love.graphics.setColor(1,1,1,1)
 end
 
 return Client
