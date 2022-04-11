@@ -25,14 +25,20 @@ function rgb(r,g,b)
 	return {r/255, g/255, b/255}
 end
 
-function draw_centered_text(text, rect_x, rect_y, rect_w, rect_h, rot, sx, sy)
+function draw_centered_text(text, rect_x, rect_y, rect_w, rect_h, rot, sx, sy, font)
 	rot = rot or 0
 	sx = sx or 1
 	sy = sy or sx
-	local font   = love.graphics.getFont()
+	local deffont = love.graphics.getFont()
+	local font   = font or love.graphics.getFont()
 	local text_w = font:getWidth(text)
 	local text_h = font:getHeight(text)
-	love.graphics.print(text, rect_x+rect_w/2, rect_y+rect_h/2, rot, sx, sy, text_w/2, text_h/2)
+	local x = math.floor(rect_x+rect_w/2)
+	local y = math.floor(rect_y+rect_h/2)
+
+	love.graphics.setFont(font)
+	love.graphics.print(text, x, y, rot, sx, sy, math.floor(text_w/2), math.floor(text_h/2))
+	love.graphics.setFont(deffont)
 end
 
 function print_centered(text, x, y, rot, sx, sy)

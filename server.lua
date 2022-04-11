@@ -42,6 +42,10 @@ function Server:init()
 	-- Timer
 	self.timer = 0
 	self.max_timer = 5*60 --5*60 = 300
+
+	-- Countdown (3,2,1,GO)
+	self.do_countdown = false
+	self.countdown_timer = 0
 end
 
 function Server:update(dt)
@@ -227,6 +231,8 @@ function Server:update(dt)
 			self:stop_game()
 		end
 
+		self:update_countdown_timer()
+
 		socket.sleep(0.01)
 	end
 end
@@ -268,7 +274,7 @@ function Server:keypressed(key)
 	end
 
 	if key == "s" then
-		self:begin_game()
+		self:begin_countdown()
 	end
 end
 
@@ -283,7 +289,50 @@ function Server:on_win(socketname)
 	self.clients[socketname].end_time = self.timer
 end
 
+function Server:begin_countdown()
+	self.do_countdown = true
+	self.countdown_timer = 3
+	self.stats = {}
+
+	local msg = concat("begincount server")
+	for socket,client in pairs(self.clients) do
+		udp:sendto(msg, client.ip, client.port)
+	end
+end
+
+function Server:update_countdown_timer()
+	if self.do_countdown then
+		local dt = love.timer.getDelta()
+	
+		self.countdown_timer = self.countdown_timer - dt
+		if self.countdown_timer < -0.5 then
+			self.do_countdown = false
+			self:begin_game()
+		end
+	end
+end
+
+function Server:draw_countdown()
+	if self.do_countdown then
+		love.graphics.setColor(0,0,0,0.8)
+		love.graphics.rectangle("fill", 0,0, WINDOW_WIDTH, WINDOW_HEIGHT)
+		
+		love.graphics.setColor(1,1,1,1)
+		local count = math.ceil(self.countdown_timer)
+		if self.countdown_timer > 0 then
+			draw_centered_text(tostring(count), 0,0, WINDOW_WIDTH, WINDOW_HEIGHT, 0,1,1, font.regular_huge)
+		else
+			draw_centered_text("GO!", 0,0, WINDOW_WIDTH, WINDOW_HEIGHT, 0,1,1, font.regular_huge)
+		end
+	end
+end
+
+
+
 function Server:begin_game()
+	-- Stop countdown
+	self.do_countdown = false
+
 	-- Notify all connected client that the game has begun, with time and seed 
 	self.game_begin = true
 	self.timer = self.max_timer
@@ -414,6 +463,8 @@ end
 function Server:draw_waiting_screen()
 	local w,h = WINDOW_WIDTH, 64
 	local x,y = (WINDOW_WIDTH-w)/2, 64
+
+	-- XX joueurs connectés
 	love.graphics.setColor(0,0,0,.7)
 	love.graphics.rectangle("fill",x,y,w,h)
 	love.graphics.setColor(1,1,1)
@@ -424,6 +475,9 @@ function Server:draw_waiting_screen()
 	love.graphics.setColor(.5,.5,.5)
 	draw_centered_text("Appuyez sur 'S' pour démarrer la partie.",x,y,w,h+100,0,0.8)
 	
+	-- Countdown timer (3, 2, 1, GO!)
+	self:draw_countdown()
+
 	love.graphics.setColor(1,1,1)
 end
 

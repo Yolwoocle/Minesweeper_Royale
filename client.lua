@@ -35,7 +35,13 @@ function Client:init()
 	self.max_ranking_request_timer = 1 --Ask for other people's rank every ? seconds
 	self.rankings = {}
 
+	self.stats = {}
+
 	self.number_of_broken_tiles = 0
+	self.show_help = false
+
+	self.do_countdown = false
+	self.countdown_timer = 0
 end
 
 function Client:init_socket()
@@ -76,6 +82,9 @@ function Client:update(dt)
 	--	self.timer = self.timer - dt
 	end
 
+	-- 3, 2, 1... Countdown timer
+	self:update_countdown(dt)
+
 	self.board:update(dt)
 	self:update_socket(dt)
 end
@@ -88,14 +97,24 @@ function Client:draw()
 
 	-- Ui (counters, etc)
 	self:draw_ui()
-
+	
 	-- Display waiting messages
 	if self.is_waiting then
-		love.graphics.setColor(0,0,0, .7)
+		-- Semi-transparent background
+		love.graphics.setColor(0,0,0, .8)
 		love.graphics.rectangle("fill",0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
 		love.graphics.setColor(1,1,1)
 		draw_centered_text(self.waiting_msg, 0,0,WINDOW_WIDTH,WINDOW_HEIGHT)
 	end
+
+	-- Display stats
+	self:display_stats()
+
+	-- Display player rankings
+	local x, y = self.board.x, self.board.y-32
+	local x = x + (self.board.w+1) * self.board.tile_size
+	self:draw_player_rankings(x, y)
+
 
 	-- Display any network errors
 	if #self.network_error > 0 then
@@ -108,13 +127,26 @@ function Client:draw()
 	-- Display chat icon
 	if not chat.display_chat then
 		local o, r = 5, 16
-	--[[
-		love.graphics.setColor(1,1,1)
-		love.graphics.draw(img.chat, o, WINDOW_HEIGHT-o-32)
-	--]]
+		local y = WINDOW_HEIGHT-o-32
+
+		-- Chat
+		local text = "[ T ] Chat"
 		love.graphics.setColor(COL_GRAY)
-		love.graphics.print("[ T ] Chat", o, WINDOW_HEIGHT-o-32)
+		love.graphics.draw(img.chat, o, y)
+		love.graphics.print(text, o+32, y)
+		local w = get_text_width(text) + 64
+
+		love.graphics.draw(img.help, o+w, y)
+		love.graphics.print("[ H ] Aide", o+32+w, y)
 	end
+
+	-- Display help 
+	if self.show_help then
+		self:display_help()
+	end
+
+	-- Display countdown (3,2,1,GO)
+	self:draw_countdown()
 end
 
 function Client:draw_ui()
@@ -123,6 +155,7 @@ function Client:draw_ui()
 	-- Clock & timer
 	local dx = x + self.board.tile_size*4
 	local time = clamp(0, math.ceil(self.timer),99999)
+
 	---- Flash text in red if less than 30 secs
 	love.graphics.setColor(1,1,1)
 	if 0 < self.timer  and  self.timer <= 30  and  self.timer%1 > .5 then   
@@ -140,8 +173,7 @@ function Client:draw_ui()
 	love.graphics.print(n_flags, flag_x+32, y)
 
 	-- Draw other players' rankings
-	local dx = x + (self.board.w+1) * self.board.tile_size
-	self:draw_player_rankings(dx, y)
+	--> Moved outside draw_ui to keep it above everything
 
 	-- Display score
 	love.graphics.draw(img.shovel_big, x, y-16)
@@ -255,6 +287,9 @@ function Client:queue_request(cmd, ...)
 end
 
 function Client:keypressed(key)
+	if key == "h" then
+		self.show_help = not self.show_help
+	end
 	--[[
 	if key == "w" and #self.rankings > 1 then
 		local randply = self:get_random_player()
@@ -354,12 +389,25 @@ function Client:update_socket(dt)
 				local rank = parms:match("^(%-?[%d.e]*)$")
 				self.rank = tonumber(rank)
 
+			elseif cmd == "begincount" then
+				self:begin_countdown()
+			
 			elseif cmd == "begingame" then
 				local max_timer, seed = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*)$")
 				max_timer, seed = tonumber(max_timer), tonumber(seed)
+				self.max_timer = max_timer
+				self.board.seed = seed
+				
+				-- Stop countdown
+				self.countdown_timer = 0
+				self.do_countdown = false		
+				self:begin_game()
+				
+				-- Begin game
 				self:begin_game(max_timer, seed)
 			
 			elseif cmd == "stopgame" then
+				self.stats = self:save_stats()
 				self.timer = 0
 				self.game_begin = false
 				self.is_waiting = true
@@ -598,22 +646,52 @@ function Client:quit()
 	self:send("leave "..self.name)
 end
 
-function Client:begin_game(max_timer, seed)	
+function Client:begin_countdown(max_timer, seed)	
+	self.countdown_timer = 3
+	self.do_countdown = true
+	self.waiting_msg = " "
+end
+
+function Client:update_countdown(dt)
+	if self.do_countdown and self.countdown_timer > -1 then
+		self.countdown_timer = self.countdown_timer - dt
+		
+		local number = math.ceil(self.countdown_timer)
+	end
+end
+
+function Client:draw_countdown()
+	if self.do_countdown then
+		love.graphics.setColor(0,0,0,0.8)
+		love.graphics.rectangle("fill", 0,0, WINDOW_WIDTH, WINDOW_HEIGHT)
+		
+		love.graphics.setColor(1,1,1,1)
+		local count = math.ceil(self.countdown_timer)
+		if self.countdown_timer > 0 then
+			draw_centered_text(tostring(count), 0,0, WINDOW_WIDTH, WINDOW_HEIGHT, 0,1,1, font.regular_huge)
+		else
+			draw_centered_text("GO!", 0,0, WINDOW_WIDTH, WINDOW_HEIGHT, 0,1,1, font.regular_huge)
+		end
+	end
+end
+
+function Client:begin_game(max_timer, seed)
+	self.game_begin = true
+
+	self.stats = {}
 	self.game_over = false
 	self.is_win = false
 	
-	self.max_timer = max_timer
-	self.timer = max_timer
-	self.board.seed = seed
+	self.timer = self.max_timer
 	self.board:reset()
 
 	self.is_waiting = false
-	self.game_begin = true
 	self.number_of_broken_tiles = 0
 	print("Server began game with seed "..tostring(seed))
 end
 
 function Client:on_win()
+	self.stats = self:save_stats()
 	self.is_win = true
 	self.is_waiting = true
 	self.waiting_msg = "\\(^o^)/ Vous avez gagné! Veuillez attendre la fin de la partie."
@@ -621,6 +699,7 @@ end
 
 function Client:on_game_over()
 	-- Check for game over/victory
+	self.stats = self:save_stats()
 	self.game_over = true
 	self.is_waiting = true
 	self.waiting_msg = "(X_X) Perdu ! Veuillez attendre la fin de la partie."
@@ -754,6 +833,76 @@ end
 
 function Client:cmd_kick(parms)
 
+end
+
+function Client:save_stats()
+	local stats = {}
+	stats[1] = {img.clock, "Temps", string.format("%i/%i", self.max_timer - self.timer, self.max_timer)}
+	stats[2] = {img.medal, "Rang", string.format("%i/%i", self.rank, #self.rankings)}
+	
+	local n_flags = self.board.number_of_bombs - self.board.remaining_flags
+	stats[3] = {img.flag_white, "Drapeaux placés", string.format("%i/%i", n_flags, self.board.number_of_bombs)}
+	
+	local n_broken = self.board.number_of_broken_tiles
+	local total_tiles = (self.board.w * self.board.h - self.board.number_of_bombs)
+	stats[4] = {img.shovel_mine, "Cases cassées", string.format("%i/%i (%i%%)", n_broken, total_tiles, self.board.percentage_cleared)}
+
+	return stats
+end
+
+function Client:display_stats()
+	local iy = math.floor(WINDOW_HEIGHT / 2 + get_text_height("test") * 2)
+	if #self.stats > 0 then
+		for k,stat in pairs(self.stats) do
+			local text = concat(stat[2]," : ",stat[3])
+			local x = math.floor(WINDOW_WIDTH/2)
+			local w = get_text_width(text)
+			
+			love.graphics.draw(stat[1], math.floor(x - w/2 - 32), iy-16)
+			draw_centered_text(text, 0,iy,WINDOW_WIDTH,1)
+			iy = iy + get_text_height(text)
+		end
+	end
+end
+
+function Client:display_help()
+	-- Draw dark rectangle
+	love.graphics.setColor(0,0,0,0.9)
+	love.graphics.rectangle("fill",0,0,WINDOW_WIDTH, WINDOW_HEIGHT)
+	
+	-- Draw all lines of text
+	love.graphics.setColor(1,1,1,1)
+	local lines = {
+		"--- Comment jouer ---",
+		" ",
+		"Démarrez une instance du jeu, puis appuyez sur 'SHIFT+F12'", 
+		"pour démarrer en mode serveur.",
+		" ",
+		"Ensuite, toute nouvelle instance du jeu tentera de se connecter",
+		"à ce serveur. Veuillez noter que les machines doivent être sur le",
+		"même réseau, ou sur la même machine.",
+		" ",
+		"Si cela ne marche pas, entrez \"/connect <addresse>\" dans le chat",
+		"pour tenter manuellement une connection.",
+		" ",
+		"Si cela échoue, merci de contacter le créateur.",
+		" ",
+		"Amusez vous bien! :D",
+		" ",
+	}
+
+	love.graphics.setColor(COL_YELLOW)
+	local text_h = get_text_height(" ")
+	local h = #lines * text_h
+	local iy = math.floor(SCREEN_HEIGHT/2 - h/2)
+	for i=1, #lines do
+		draw_centered_text(lines[i], 0, iy, WINDOW_WIDTH, 1)
+		iy = iy + text_h
+	end
+
+	love.graphics.draw(img.arrow_left, 8, WINDOW_HEIGHT-32)
+	love.graphics.print("[ H ] Retour", 8+32, WINDOW_HEIGHT-32)
+	love.graphics.setColor(COL_WHITE)
 end
 
 return Client
