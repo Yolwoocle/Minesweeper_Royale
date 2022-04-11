@@ -3,7 +3,8 @@ local Class = require "class"
 local Board = require "board"
 local font = require "font"
 local img = require "images"
-local utf8 = require "lua-utf8"
+local sfx = require "sfx"
+local utf8 = require "utf8"
 require "constants"
 
 local udp = socket.udp()
@@ -76,7 +77,22 @@ function Client:init_socket()
 end
 
 function Client:update(dt)
+	local old_timer = self.timer
 	self.timer = self.timer - dt
+
+	if self.game_begin then
+		if self.timer <= 30 and math.ceil(self.timer) ~= math.ceil(old_timer) then
+			audio:play(sfx.tick)
+			--[[
+				if self.timer > 10 then
+			else
+				--local num = sfx.number[math.ceil(self.timer)]
+				audio:play(sfx.tick)
+			end
+			--]]
+		end
+	end
+
 	if self.is_waiting then
 	else	
 	--	self.timer = self.timer - dt
@@ -647,14 +663,24 @@ function Client:quit()
 end
 
 function Client:begin_countdown(max_timer, seed)	
-	self.countdown_timer = 3
+	self.countdown_timer = 3.01
 	self.do_countdown = true
 	self.waiting_msg = " "
 end
 
 function Client:update_countdown(dt)
 	if self.do_countdown and self.countdown_timer > -1 then
+		local oldtimer = self.countdown_timer 
 		self.countdown_timer = self.countdown_timer - dt
+
+		-- "clock tick" SFX
+		local timer = math.ceil(self.countdown_timer)
+		if timer ~= math.ceil(oldtimer) then
+			local num = sfx.numbers[timer]
+			num = num or sfx.numbers[0]
+
+			audio:play(num)
+		end
 		
 		local number = math.ceil(self.countdown_timer)
 	end
@@ -741,7 +767,14 @@ function Client:set_name(name)
 	nn = ""
 	for i=1, utf8.len(name) do
 		local chr = utf8.sub(name,i,i)
-		local byte = utf8.byte(chr)
+
+		local byte = 0
+		local i = 1
+		for _,v in utf8.codes(chr) do
+			local byte = v
+			if i>1 then   break   end
+			i = i +1
+		end
 		if byte > 128 then
 			chr = "-"
 		end
@@ -882,16 +915,15 @@ function Client:display_help()
 		"à ce serveur. Veuillez noter que les machines doivent être sur le",
 		"même réseau, ou sur la même machine.",
 		" ",
-		"Si cela ne marche pas, entrez \"/connect <addresse>\" dans le chat",
+		"Si cela ne marche pas, entrez \"/connect <votre addresse ici>\" dans le chat",
 		"pour tenter manuellement une connection.",
 		" ",
-		"Si cela échoue, merci de contacter le créateur.",
+		"Si cela échoue, merci de contacter le développeur.",
 		" ",
 		"Amusez vous bien! :D",
 		" ",
 	}
 
-	love.graphics.setColor(COL_YELLOW)
 	local text_h = get_text_height(" ")
 	local h = #lines * text_h
 	local iy = math.floor(SCREEN_HEIGHT/2 - h/2)
@@ -900,8 +932,10 @@ function Client:display_help()
 		iy = iy + text_h
 	end
 
-	love.graphics.draw(img.arrow_left, 8, WINDOW_HEIGHT-32)
-	love.graphics.print("[ H ] Retour", 8+32, WINDOW_HEIGHT-32)
+	-- "Back" prompt
+	love.graphics.setColor(COL_YELLOW)
+	love.graphics.draw(img.arrow_left, 8, WINDOW_HEIGHT-8)
+	love.graphics.print("[ H ] Retour", 8+32, WINDOW_HEIGHT-8)
 	love.graphics.setColor(COL_WHITE)
 end
 

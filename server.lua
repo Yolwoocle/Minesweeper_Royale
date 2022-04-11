@@ -3,6 +3,7 @@ local Class = require "class"
 local Board = require "board"
 local font = require "font"
 local img = require "images"
+local sfx = require "sfx"
 
 local udp = socket.udp()
 
@@ -41,7 +42,7 @@ function Server:init()
 
 	-- Timer
 	self.timer = 0
-	self.max_timer = 5*60 --5*60 = 300
+	self.max_timer = 60--5*60 --5*60 = 300
 
 	-- Countdown (3,2,1,GO)
 	self.do_countdown = false
@@ -49,7 +50,13 @@ function Server:init()
 end
 
 function Server:update(dt)
+	local old_timer = self.timer
 	self.timer = self.timer - dt
+
+	-- Tick SFX on low timer
+	if self.timer <= 30 and math.ceil(self.timer) ~= math.ceil(old_timer) then
+		audio:play(sfx.tick)
+	end
 
 	local data, msg_or_ip, port_or_nil
 	local entity, cmd, parms
@@ -189,6 +196,15 @@ function Server:update(dt)
 			elseif cmd == "rename" then
 				local new_name = parms
 				local old_name = self.clients[socket].name
+
+				-- We check if there is already someone with this name
+				local existing_client = self:get_user_from_name(new_name)
+				if existing_client then
+					new_name = new_name + tostring(self.last_id)
+					self.last_id = self.last_id + 1
+					udp:sendto("assignname "..new_name, ip, port)
+				end
+
 				self.clients[socket].name = new_name
 				self:send_chat_message(concat("%y",old_name," s'est renommé à ",new_name))
 
@@ -293,6 +309,7 @@ function Server:begin_countdown()
 	self.do_countdown = true
 	self.countdown_timer = 3
 	self.stats = {}
+	audio:play(sfx.tick)
 
 	local msg = concat("begincount server")
 	for socket,client in pairs(self.clients) do
@@ -304,7 +321,14 @@ function Server:update_countdown_timer()
 	if self.do_countdown then
 		local dt = love.timer.getDelta()
 	
+		local oldtimer = self.countdown_timer 
 		self.countdown_timer = self.countdown_timer - dt
+		
+		-- "clock tick" SFX
+		if math.ceil(self.countdown_timer) ~= math.ceil(oldtimer) then
+			audio:play(sfx.tick)
+		end
+
 		if self.countdown_timer < -0.5 then
 			self.do_countdown = false
 			self:begin_game()
@@ -430,12 +454,14 @@ function Server:draw_clients()
 			love.graphics.rectangle("fill", x, y, board_width, board_height)
 			love.graphics.setColor(1,1,1)
 			draw_centered_text("Perdu !", x,y, board_width, board_height)
+			love.graphics.draw(img.skull, x+board_width/2-16,y+board_height/2-48)
 
 		elseif client.is_win then
 			love.graphics.setColor(0,0,0, 0.7)
 			love.graphics.rectangle("fill", x, y, board_width, board_height)
 			love.graphics.setColor(1,1,1)
 			draw_centered_text("Victoire !", x,y, board_width, board_height)
+			love.graphics.draw(img.crown, x+board_width/2-16,y+board_height/2-48)
 		end
 
 		i=i+1

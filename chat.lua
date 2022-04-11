@@ -1,5 +1,5 @@
 local Class = require "class"
-local utf8 = require 'lua-utf8'
+local utf8 = require 'utf8'
 require "constants"
 require 'util'
 

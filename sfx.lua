@@ -37,8 +37,20 @@ sfx.click = {
 }
 
 sfx.numbers = {
-	
+	[0] = new_source("sfx/go.ogg"),
+	[1] = new_source("sfx/1.ogg"),
+	[2] = new_source("sfx/2.ogg"),
+	[3] = new_source("sfx/3.ogg"),
+	[4] = new_source("sfx/4.ogg"),
+	[5] = new_source("sfx/5.ogg"),
+	[6] = new_source("sfx/6.ogg"),
+	[7] = new_source("sfx/7.ogg"),
+	[8] = new_source("sfx/8.ogg"),
+	[9] = new_source("sfx/9.ogg"),
+	[10] = new_source("sfx/10.ogg"),
 }
+
+sfx.tick = new_source("sfx/tick.flac")
 
 return sfx
 --[[

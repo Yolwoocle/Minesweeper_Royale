@@ -1,6 +1,6 @@
 local img = require "images"
---[[
 local utf8 = require "utf8"
+--[[
 local utf8 = require("lib.utf8"):init()
 local defaultUTF8 = require("utf8")
 defaultUTF8.gsub = utf8.gsub
@@ -22,7 +22,7 @@ function lighten_color(col, v)
 end
 
 function rgb(r,g,b)
-	return {r/255, g/255, b/255}
+	return {r/255, g/255, b/255, 1}
 end
 
 function draw_centered_text(text, rect_x, rect_y, rect_w, rect_h, rot, sx, sy, font)
@@ -170,9 +170,49 @@ function utf8.sub(str, i, j)
 end
 function utf8.sub(str, i, j)
 	if utf8.len(str) == 0 then  return ""  end
-  return utf8.char(utf8.codepoint(str, i, j))
+  local ii = utf8.offset(str, i)
+  local jj = utf8.offset(str, j)-1
+	return string.sub(str, ii, jj)
+end
+
+function utf8.sub(str, i, j)
+	str = str or ""
+	str = tostring(str)
+	i = i or 1
+	j = j or 1
+	--if i < 0 then   i = uft8.len(str)-i+1   end
+	--if j < 0 then   j = uft8.len(str)-j+1   end
+	local len = utf8.len(str)
+	if i > len then   i = len   end
+	if j > len then   j = len   end
+	if utf8.len(str) == 0 then  return ""  end
+	print(str,i, j, len)
+	local ii = utf8.offset(str, i)
+  local jj = utf8.offset(str, j)+1
+	return string.sub(ii, jj)
 end
 --]]
+
+-- Thanks to "index five" on Discord
+local utf8pos, utf8len = utf8.offset, utf8.len
+local sub = string.sub
+local max, min = math.max, math.min
+
+function posrelat(pos, len)
+	if pos >= 0 then return pos end
+	if -pos > len then return 0 end
+	return pos + len + 1
+end
+
+function utf8.sub(str, i, j)
+	local len = utf8len(str)
+	i, j = max(posrelat(i, len), 1), j and min(posrelat(j, len), len) or len
+	if i <= j  then
+		return sub(str, utf8pos(str, i), utf8pos(str, j + 1) - 1)
+	end
+	return ""
+end
+
 
 function sanitize_input(text)
 	return text
