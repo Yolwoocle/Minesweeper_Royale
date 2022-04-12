@@ -303,8 +303,10 @@ function Client:queue_request(cmd, ...)
 end
 
 function Client:keypressed(key)
-	if key == "h" then
-		self.show_help = not self.show_help
+	if not chat.display_chat then
+		if key == "h" then
+			self.show_help = not self.show_help
+		end
 	end
 	--[[
 	if key == "w" and #self.rankings > 1 then

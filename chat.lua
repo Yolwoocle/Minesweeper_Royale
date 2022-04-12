@@ -58,7 +58,7 @@ function Chat:update(dt)
 	end
 
 	-- Command list
-	self.show_command_list = (self.input == "/")
+	self.show_command_list = (utf8.sub(self.input,1,1) == "/")
 end
 
 function Chat:draw()
@@ -110,10 +110,35 @@ function Chat:draw()
 	end
 
 	-- Show command list
+	local text_h = get_text_height(" ")
+	love.graphics.setColor(COL_WHITE)
 	if self.show_command_list then
-		local i = 1
-		for k,cmd in pairs(self.client_commands) do
-			
+		-- Generate table of commands to display
+		local commands = {}
+		local text_w = 0
+		for name,cmd in pairs(self.client_commands) do
+			local text = "/"..name
+			local w = get_text_width(text) + 8
+			local input_len = utf8.len(self.input)
+
+			-- If the beginning of input matches OR input is just a slash
+			if utf8.sub(text,1,input_len) == self.input or input_len == 1 then
+				table.insert(commands, text)
+				-- Define the maximum length text
+				if w > text_w then   text_w = w    end
+			end
+		end
+		
+		-- Display list of all commands
+		local i = 2
+		for _,name in pairs(commands) do
+			local y = WINDOW_HEIGHT - i*text_h
+			local text = name
+			love.graphics.setColor(0,0,0,.8)
+			love.graphics.rectangle("fill", 2, y, text_w, text_h)
+			love.graphics.setColor(COL_WHITE)
+			love.graphics.print(text, 2, y)
+			i=i+1
 		end
 	end
 end
