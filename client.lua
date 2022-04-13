@@ -54,7 +54,7 @@ function Client:init_socket()
 	--Which IP in the serverip.txt file the client is connected to
 	self.fallback_number = 1
 	self.fallback_servers = self:read_server_ips()
-	local default_serv = self.fallback_servers[1]
+	local default_serv = self.fallback_servers[1] or {ip="localhost", port=12345}
 	
 	self.address = default_serv.ip or "localhost"
 	self.port = default_serv.port or 12345
@@ -307,6 +307,10 @@ function Client:keypressed(key)
 		if key == "h" then
 			self.show_help = not self.show_help
 		end
+
+		if key == "p" then
+			local f = g[2]
+		end
 	end
 	--[[
 	if key == "w" and #self.rankings > 1 then
@@ -339,8 +343,7 @@ function Client:update_socket(dt)
 				-- If all fallback servers have been tried
 				self.timeout_timer = 0
 				self.do_timeout = false
-				notification("Impossible de se connecter au serveur.")
-				notification("Merci de contacter l'administrateur.")
+				notification("Impossible de se connecter au serveur, merci de contacter l'administrateur. (Appuyez [f5] pour réessayer)")
 				self.waiting_msg = "Connection impossible, contactez l'administrateur (-_-'')"
 			end
 		end
@@ -431,6 +434,12 @@ function Client:update_socket(dt)
 				self.is_waiting = true
 				self.waiting_msg = "Partie terminée ! Attendez l'administrateur."
 				print("Game ended. GG!")
+			
+			elseif cmd == "kick" then
+				self.game_begin = false
+				self.do_timeout = false
+				self.is_waiting = true
+				self.waiting_msg = "Vous avez été expulsé D:"
 
 			elseif cmd == "listranks" then
 				-- Update other player's ranks
@@ -521,7 +530,6 @@ function Client:read_server_ips(default)
 	
 	local local_ip = self:get_local_ip()
 	if local_ip then
-		table.insert(ips, {ip=local_ip, name=MSG_LOCAL_NETWORK})
 	else
 		print("Failed to read local IP, instead got ",local_ip)
 	end
@@ -928,7 +936,7 @@ function Client:display_help()
 	love.graphics.setColor(1,1,1,1)
 	local text_h = get_text_height(" ")
 	local h = #lines * text_h
-	local iy = math.floor(SCREEN_HEIGHT/2 - h/2)
+	local iy = math.floor(WINDOW_HEIGHT/2 - h/2)
 	for i=1, #lines do
 		draw_centered_text(lines[i], 0, iy, WINDOW_WIDTH, 1)
 		iy = iy + text_h
@@ -939,6 +947,25 @@ function Client:display_help()
 	love.graphics.draw(img.arrow_left, 8, WINDOW_HEIGHT-8-32)
 	love.graphics.print("[ H ] Retour", 8+32, WINDOW_HEIGHT-8-text_h)
 	love.graphics.setColor(1,1,1,1)
+end
+
+function Client:cmd_color(parms)
+	local color = parms[1]
+	if not color or utf8.len(color) == 0 then  
+		chat:new_msg("%rFormat: /color <couleur>")
+	end
+
+	local success, error_msg = self:set_color(color)
+	if success then
+		chat:new_msg("%yCouleur du plateau modifiée en \"", color,"\"")
+		self:queue_request("color", color)
+	else
+		chat:new_msg(error_msg)
+	end
+end
+
+function Client:set_color(color)
+	return self.board:set_tile_color(color)
 end
 
 return Client

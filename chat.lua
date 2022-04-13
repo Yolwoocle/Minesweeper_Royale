@@ -22,26 +22,60 @@ function Chat:init(parent)
 
 	self.show_command_list = false
 
-	self.client_commands = {
-		["connect"] = function(self, parms)
+	self.commands = {
+		["connect"] = self:new_cmd("client", function(self, parms)
 			self.parent:cmd_connect(parms)
-		end,
+		end),
 		
-		["ping"] = function(self, parms)
+		["ping"] = self:new_cmd("client", function(self, parms)
 			self.parent:cmd_ping(parms)
-		end,
+		end),
 		
-		["name"] = function(self, parms)
+		["name"] = self:new_cmd("client", function(self, parms)
 			self.parent:cmd_name(parms)
-		end,
+		end),
 		
-		["folder"] = function(self, parms)
+		["folder"] = self:new_cmd("all", function(self, parms)
 			-- Copies to the clipboard the path to the screeshots folder 
 			local filepath = love.filesystem.getSaveDirectory()
 			love.system.setClipboardText(filepath)
 			notification("Chemin du dossier des captures d'écran copié.")
 			return
-		end,
+		end),
+
+		-- Server commands
+		["kick"] = self:new_cmd("server", function(self, parms)
+			local username = parms[1]
+			if not username or utf8.len(username) == 0 then  
+				notification("%rFormat: /kick <nom d'utilisateur>")
+			end
+			self.parent:kick_user(username)
+		end),
+
+		["stopgame"] = self:new_cmd("server", function(self, parms)
+			self.parent:send_chat_message("%yLe serveur a stoppé la partie.")
+			self.parent:stop_game()
+		end),
+
+		["help"] = self:new_cmd("client", function(self, parms)
+			self.parent.show_help = not self.parent.show_help	
+		end),
+  
+		["color"] = self:new_cmd("client", function(self, parms)
+			self.parent:cmd_color(parms)
+		end),
+
+		["clear"] = self:new_cmd("client", function(self, parms)
+			self.chat = {}
+		end),
+		
+		["stop"] = self:new_cmd("server", function(self, parms) 
+			self.parent:stop()
+		end),
+
+		-- Templates
+		["___"] = self:new_cmd("____", function(self, parms) 
+		end),
 	}
 end
 
@@ -62,34 +96,14 @@ function Chat:update(dt)
 end
 
 function Chat:draw()
+	local y = WINDOW_HEIGHT - 32
+	
 	-- Draw chat messages
-	for i = 1, #self.chat do
+	for i = #self.chat, 1, -1 do
+		-- Draw message
 		local msg = self.chat[i]
-		-- Transparecy
-		local a
-		if self.display_chat then
-			a = 1
-		else
-			a = math.min(1, msg.t)
-		end
+		y = self:draw_msg(msg, 2, y)
 
-		local y = WINDOW_HEIGHT - (#self.chat+2)*32 + i*32
-		if self.display_chat then   
-			-- Background rectangle if on input mode
-			love.graphics.setColor(0,0,0, 0.5)
-			love.graphics.rectangle("fill", 0,y, get_text_width(msg.msg)+8, 32)
-		end
-		-- Draw text 
-		love.graphics.setColor(1,1,1, a)
-		if msg.color then   
-			-- Custom colors
-			local col = msg.color
-			col[4] = a
-			love.graphics.setColor(col)
-		end
-		love.graphics.print(tostring(msg.msg), 2, y)
-		love.graphics.setColor(1,1,1)
-		
 		if self.display_chat then
 			-- Input field: black rectangle
 			local y = WINDOW_HEIGHT - 32
@@ -116,13 +130,15 @@ function Chat:draw()
 		-- Generate table of commands to display
 		local commands = {}
 		local text_w = 0
-		for name,cmd in pairs(self.client_commands) do
+		for name,cmd in pairs(self.commands) do
 			local text = "/"..name
 			local w = get_text_width(text) + 8
 			local input_len = utf8.len(self.input)
 
 			-- If the beginning of input matches OR input is just a slash
-			if utf8.sub(text,1,input_len) == self.input or input_len == 1 then
+			local input_matches = (utf8.sub(text,1,input_len) == self.input) or (input_len == 1)
+			local type_matches = (cmd.type == self.parent.type) or (cmd.type == "all")
+			if type_matches and input_matches then
 				table.insert(commands, text)
 				-- Define the maximum length text
 				if w > text_w then   text_w = w    end
@@ -141,6 +157,44 @@ function Chat:draw()
 			i=i+1
 		end
 	end
+end
+
+function Chat:draw_msg(msg,x,y)
+	-- Transparency
+	local a
+	if self.display_chat then
+		a = 1
+	else
+		a = math.min(1, msg.t)
+	end
+
+	-- Draw text 
+	local width, wrappedtext = love.graphics.getFont():getWrap(msg.msg, WINDOW_WIDTH)
+	local height = #wrappedtext * 32
+	local y = y - 32 * #wrappedtext
+
+	-- Background rectangle if on input mode
+	if self.display_chat then   
+		love.graphics.setColor(0,0,0, 0.5)
+		love.graphics.rectangle("fill", 0,y, width+8, height)
+	end
+
+	-- Custom colors
+	love.graphics.setColor(1,1,1, a)
+	if msg.color then   
+		local col = msg.color
+		col[4] = a
+		love.graphics.setColor(col)
+	end
+	
+	-- Draw lines
+	local iy = y
+	for i,text in pairs(wrappedtext) do
+		love.graphics.print(tostring(text), x, iy)
+		iy = iy + 32
+	end
+	love.graphics.setColor(1,1,1)
+	return y
 end
 
 function Chat:new_msg(...)
@@ -260,21 +314,17 @@ function Chat:send_command(text)
 	local cmd = arguments[1]
 	table.remove(arguments, 1)
 	local parms = arguments
+	parms = parms or {}
 
 	-- Client
-	if self.parent.type == "client" then
-		local func = self.client_commands[cmd]
-		if func then
-			func(self, parms)
-		end
+	local cmd = self.commands[cmd]
+	if not cmd then
+		self:new_msg("%rCommande inconnue:")
+	end
 
-	-- Server
-	elseif self.parent.type == "server" then
-		if cmd == "kick" then
-			local user = 
-			self.parent:kick_user()
-		end
-
+	local is_correct_type = (self.parent.type == cmd.type) or (cmd.type == "all")
+	if cmd and is_correct_type then
+		cmd.func(self, parms)
 	end
 end
 
@@ -301,6 +351,13 @@ function Chat:parse_color(msg)
 
 	end
 	return msg, col
+end
+
+function Chat:new_cmd(type, func)
+	return {
+		type = type,
+		func = func,
+	}
 end
 
 return Chat

@@ -21,15 +21,38 @@ COL_RED = rgb(255,0,33)
 COL_YELLOW = rgb(255,255,0)
 COL_REVEALED = rgb(25,25,25)
 COL_HIDDEN = rgb(100, 200, 77)
+COL_YELLOWGREEN = rgb(200,255,50)
+COL_MAGENTA = rgb(200,0,255)
+COL_CYAN = rgb(0,188,211)
+COL_PINK = rgb(255,66,234)
+COL_ORANGE = rgb(255,126,55)
 
 PALETTE_NUMBERS = {
 	[0] = COL_BLACK,
 	[1] = COL_BLUE,
 	[2] = COL_GREEN,
 	[3] = COL_RED,
-	[4] = rgb(200,255,50),
-	[5] = rgb(200,0,255),
-	[6] = rgb(0,188,211),
-	[7] = rgb(127,127,127),
-	[8] = rgb(255,66,234),	
+	[4] = COL_YELLOWGREEN,
+	[5] = COL_MAGENTA,
+	[6] = COL_CYAN,
+	[7] = COL_GRAY,
+	[8] = COL_WHITE,	
+}
+
+BOARD_COLORS = {
+	black = COL_BLACK,
+	gray = COL_GRAY,
+	white = COL_WHITE,
+
+	red = COL_RED,
+	orange = COL_ORANGE,
+	yellow = COL_YELLOW,
+	lightgreen = COL_YELLOWGREEN,
+	green = COL_GREEN,
+	cyan = COL_CYAN,
+	blue = COL_BLUE,
+	magenta = COL_MAGENTA,
+	pink = COL_PINK,
+
+	default = COL_REVEALED,
 }

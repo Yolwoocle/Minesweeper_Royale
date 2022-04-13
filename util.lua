@@ -85,6 +85,14 @@ function concatsep(tab, sep)
 	return s
 end
 
+function concat_keys(tab, sep)
+	sep = sep or " "
+	local s = ""
+	for k,v in pairs(tab) do
+		s = s..sep..tostring(k)
+	end
+	return utf8.sub(s, 2, -1)
+end
 
 function bool_to_int(b)
 	if b then

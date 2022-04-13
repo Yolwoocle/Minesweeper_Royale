@@ -61,196 +61,210 @@ function Server:update(dt)
 	local data, msg_or_ip, port_or_nil
 	local entity, cmd, parms
 
-	if self.running then
-		data, msg_or_ip, port_or_nil = udp:receivefrom()
+	data, msg_or_ip, port_or_nil = udp:receivefrom()
+	
+	if data then
+		print(concat('Recieved client data:', data, "; from: ", msg_or_ip, ":", port_or_nil))
+		local cmd, parms = data:match("^(%S*) (.*)$")
+		local ip, port = msg_or_ip, port_or_nil
+		local socket = concat(msg_or_ip,":",port_or_nil)
+		local client = self.clients[socket]
+
+		-- Reset client timeout timer to 5 seconds (lenghthen if needed)
+		if client then   client.timeout_timer = 5   end
 		
-		if data then
-			print(concat('Recieved client data:', data, "; from: ", msg_or_ip, ":", port_or_nil))
-			local cmd, parms = data:match("^(%S*) (.*)$")
-			local ip, port = msg_or_ip, port_or_nil
-			local socket = concat(msg_or_ip,":",port_or_nil)
-			local client = self.clients[socket] 
+		if cmd == "join" then
+			-- User joins
+			-- TODO: define users by ID rather than socket name
+			local name = parms 
+			self.last_id = self.last_id + 1
+			local new_id = self.last_id
+			-- If name is not defined, use default
+			if not name or #name < 1 then  name="Personnecool_"..tostring(new_id)  end
+			-- If usedrname is already taken, append the ID number
+			if self:name_already_used(name) then  name=name..tostring(new_id)  end
+
+			self.number_of_clients = self.number_of_clients + 1
+			self.clients[socket] = {
+				id = new_id,
+				ip = msg_or_ip,
+				port = port_or_nil,
+				socket = socket,
+				name = name,
+				board = Board:new(self, self.seed, socket, 0.5, false),
+				
+				rank = 0,
+				is_win = false,
+				game_over = false,
+				state = "",
+				end_time = -1,
+
+				timeout_timer = 5,
+			}
 			
-			if cmd == "join" then
-				-- User joins
-				-- TODO: define users by ID rather than socket name
-				local name = parms 
-				self.last_id = self.last_id + 1
-				local new_id = self.last_id
-				-- If name is not defined, use default
-				if not name or #name < 1 then  name="Personnecool_"..tostring(new_id)  end
-				-- If usedrname is already taken, append the ID number
-				if self:name_already_used(name) then  name=name..tostring(new_id)  end
+			-- Notify the client with its new ID
+			print("Assigning new id", new_id)
+			udp:sendto(concat("assignid ",new_id), msg_or_ip, port_or_nil)
 
-				self.number_of_clients = self.number_of_clients + 1
-				self.clients[socket] = {
-					id = new_id,
-					ip = msg_or_ip,
-					port = port_or_nil,
-					socket = socket,
-					name = name,
-					board = Board:new(self, self.seed, socket, 0.5, false),
-					
-					rank = 0,
-					is_win = false,
-					game_over = false,
-					state = "",
-					end_time = -1,
-				}
-				
-				-- Notify the client with its new ID
-				print("Assigning new id", new_id)
-				udp:sendto(concat("assignid ",new_id), msg_or_ip, port_or_nil)
-
-				print("Assigning new seed", self.seed)
-				udp:sendto(concat("assignseed ",self.seed), msg_or_ip, port_or_nil)
-				
-				print("Assigning new name", name)
-				udp:sendto(concat("assignname ",name), msg_or_ip, port_or_nil)
-				
-				-- Notify others with a chat message
-				self:send_chat_message(concat(name," a rejoint."))
-				print(concat("Client joined, assigned ID :\"",new_id, "\" with name: \"",name,"\""))
-
-			elseif cmd == 'leave' then
-				-- User leaves
-				if self.clients[socket] then
-					local id = parms:match("^(%-?[%d.e]*)")
-					local client = self.clients[socket]
-					self:send_chat_message(concat(client.name," a quitté."))
-					print(concat("Player \"", client.name,"\" with IP ",socket," left."))
-					
-					self.number_of_clients = self.number_of_clients - 1
-					self.clients[socket] = nil
-				end
-
-			elseif cmd == 'update' then
-				-- Update client with their rank
-				if client then
-					local msg = concat("update ",client.rank)
-					udp:sendto(msg, msg_or_ip,  port_or_nil)
-				end
+			print("Assigning new seed", self.seed)
+			udp:sendto(concat("assignseed ",self.seed), msg_or_ip, port_or_nil)
 			
-			elseif cmd == "listranks" then
-				-- Update client with other players' rankings
-				-- TODO: this might create strings that are too big and 
-				-- saturate the network. Right now the cooldown is at 1
-				-- seconds, change if it's needed, or split into multiple messages.
-				if client then
-					local msg = "listranks"
-					for sock, client in pairs(self.clients) do
-						local rank = client.rank
-						local percentage = client.board.percentage_cleared
-						local state = "none"
-						if client.game_over then
-							state = "game_over"
-						elseif client.is_win then
-							state = "win"
-						end
+			print("Assigning new name", name)
+			udp:sendto(concat("assignname ",name), msg_or_ip, port_or_nil)
+			
+			-- Notify others with a chat message
+			self:send_chat_message(concat("%y",name," a rejoint."))
+			print(concat("Client joined, assigned ID :\"",new_id, "\" with name: \"",name,"\""))
 
-						-- If it's itself, flag it by making the rank regative
-						if client.socket == socket then   rank = -rank  end
-						msg = concatsep({msg, client.name, rank, percentage, state}, " ")
-					end
-					udp:sendto(msg, msg_or_ip, port_or_nil)
-				end
-
-			elseif cmd == "break" then
-				-- Client breaks tile
-				local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
-				tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
-				
-				if self.clients[socket] and self.game_begin then
-					self.clients[socket].board:on_button1(tx, ty, is_valid)
-				end
-
-			elseif cmd == "flag" then
-				-- Client breaks tile
-				local set, tx, ty, is_valid = parms:match("^(.*) (%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
-				set, tx, ty, is_valid = tobool(set), tonumber(tx), tonumber(ty), is_valid=="1"
-
-				if self.clients[socket] and self.game_begin and is_valid then
-					self.clients[socket].board:set_flag(tx, ty, set)
-				end
-
-			elseif cmd == "fastreveal" then
-				local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
-				tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
-
+		elseif cmd == 'leave' then
+			-- User leaves
+			if self.clients[socket] then
+				local id = parms:match("^(%-?[%d.e]*)")
 				local client = self.clients[socket]
-				client.board:on_button3(tx, ty, is_valid)
-
-			elseif cmd == "chat" then
-				local msg = parms
-				chat:new_msg(msg)
-				-- Send chat message to all clients
-				for s, client in pairs(self.clients) do
-					if s ~= socket then
-						udp:sendto("chat "..msg, client.ip, client.port)
-					end
-				end
-
-			elseif cmd == "ping" then
-				udp:sendto("chat %yServer: Pong!", msg_or_ip,  port_or_nil)
-
-			elseif cmd == "rename" then
-				local new_name = parms
-				local old_name = self.clients[socket].name
-
-				-- We check if there is already someone with this name
-				local existing_client = self:get_user_from_name(new_name)
-				if existing_client then
-					new_name = new_name + tostring(self.last_id)
-					self.last_id = self.last_id + 1
-					udp:sendto("assignname "..new_name, ip, port)
-				end
-
-				self.clients[socket].name = new_name
-				self:send_chat_message(concat("%y",old_name," s'est renommé à ",new_name))
-
-			elseif cmd == "stop" then
-				self:stop()
-			
-			elseif cmd == "itemearthquake" then
-				-- TEMPORARY REMOVEME <<<<<<<<<<<<<<<<<<
-				local target_name = parms:match("(.*)")
-				local target = self:get_user_from_name(target_name)
-
-				if target then
-					local seed = love.math.random(-99999,99999)
-					local msg = concat("itemearthquake ",seed)
-					target.board:item_earthquake(seed)
-					udp:sendto(msg, target.ip, target.port)
-				else
-					notification("Error: invalid item target: \"",target_name,"\"")
-				end
-
-			else
-				print("unrecognised command:", cmd)
+				self:send_chat_message(concat("%y",client.name," a quitté."))
+				print(concat("Player \"", client.name,"\" with IP ",socket," left."))
+				
+				self.number_of_clients = self.number_of_clients - 1
+				self.clients[socket] = nil
 			end
-		elseif msg_or_ip ~= 'timeout' then
-			error("Unknown network error: "..tostring(msg))
-		end
 
-		self:assign_ranks_to_players()
-		-- Update all boards
-		for socket,client in pairs(self.clients) do
-			client.board:update(dt)
-		end
+		elseif cmd == 'update' then
+			-- Update client with their rank
+			if client then
+				local msg = concat("update ",client.rank)
+				udp:sendto(msg, msg_or_ip,  port_or_nil)
+			end
+		
+		elseif cmd == "listranks" then
+			-- Update client with other players' rankings
+			-- TODO: this might create strings that are too big and 
+			-- saturate the network. Right now the cooldown is at 1
+			-- seconds, change if it's needed, or split into multiple messages.
+			if client then
+				local msg = "listranks"
+				for sock, client in pairs(self.clients) do
+					local rank = client.rank
+					local percentage = client.board.percentage_cleared
+					local state = "none"
+					if client.game_over then
+						state = "game_over"
+					elseif client.is_win then
+						state = "win"
+					end
 
-		-- If timer reaches 0, notify all clients that the game has ended
-		if self.game_begin and self.timer <= 0 then
-			self:stop_game()
-		end
-		-- If all players are waiting (lost or won), stop the game
-		if self.game_begin and self:check_if_all_players_waiting() then
-			self:stop_game()
-		end
+					-- If it's itself, flag it by making the rank regative
+					if client.socket == socket then   rank = -rank  end
+					msg = concatsep({msg, client.name, rank, percentage, state}, " ")
+				end
+				udp:sendto(msg, msg_or_ip, port_or_nil)
+			end
 
-		self:update_countdown_timer()
+		elseif cmd == "break" then
+			-- Client breaks tile
+			local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
+			tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
+			
+			if self.clients[socket] and self.game_begin then
+				self.clients[socket].board:on_button1(tx, ty, is_valid)
+			end
 
-		socket.sleep(0.01)
+		elseif cmd == "flag" then
+			-- Client breaks tile
+			local set, tx, ty, is_valid = parms:match("^(.*) (%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
+			set, tx, ty, is_valid = tobool(set), tonumber(tx), tonumber(ty), is_valid=="1"
+
+			if self.clients[socket] and self.game_begin and is_valid then
+				self.clients[socket].board:set_flag(tx, ty, set)
+			end
+
+		elseif cmd == "fastreveal" then
+			local tx, ty, is_valid = parms:match("^(%-?[%d.e]*) (%-?[%d.e]*) (%d)$")
+			tx, ty, is_valid = tonumber(tx), tonumber(ty), is_valid=="1"
+
+			local client = self.clients[socket]
+			client.board:on_button3(tx, ty, is_valid)
+
+		elseif cmd == "chat" then
+			local msg = parms
+			chat:new_msg(msg)
+			-- Send chat message to all clients
+			for s, client in pairs(self.clients) do
+				if s ~= socket then
+					udp:sendto("chat "..msg, client.ip, client.port)
+				end
+			end
+
+		elseif cmd == "ping" then
+			udp:sendto("chat %yServer: Pong!", msg_or_ip,  port_or_nil)
+
+		elseif cmd == "rename" then
+			local new_name = parms
+			local old_name = self.clients[socket].name
+
+			-- We check if there is already someone with this name
+			local existing_client = self:get_user_from_name(new_name)
+			if existing_client then
+				new_name = new_name + tostring(self.last_id)
+				self.last_id = self.last_id + 1
+				udp:sendto("assignname "..new_name, ip, port)
+			end
+
+			self.clients[socket].name = new_name
+			self:send_chat_message(concat("%y",old_name," s'est renommé à ",new_name))
+
+		elseif "color" then
+			if client then
+				local color = parms
+				local success, error_msg = client.board:set_tile_color(color)
+				if error_msg then   print(concat("Error when trying to change color: \"",error_msg,"\""))   end
+			end
+
+		elseif cmd == "stop" then
+			-- Stops the server.
+			--self:stop()
+		
+		elseif cmd == "itemearthquake" then
+			-- TEMPORARY REMOVEME <<<<<<<<<<<<<<<<<<
+			local target_name = parms:match("(.*)")
+			local target = self:get_user_from_name(target_name)
+
+			if target then
+				local seed = love.math.random(-99999,99999)
+				local msg = concat("itemearthquake ",seed)
+				target.board:item_earthquake(seed)
+				udp:sendto(msg, target.ip, target.port)
+			else
+				notification("Error: invalid item target: \"",target_name,"\"")
+			end
+
+		else
+			print("unrecognised command:", cmd)
+		end
+	elseif msg_or_ip ~= 'timeout' then
+		error("Unknown network error: "..tostring(msg))
 	end
+
+	self:assign_ranks_to_players()
+	-- Update all boards
+	for socket,client in pairs(self.clients) do
+		client.board:update(dt)
+	end
+
+	-- If timer reaches 0, notify all clients that the game has ended
+	if self.game_begin and self.timer <= 0 then
+		self:stop_game()
+	end
+	-- If all players are waiting (lost or won), stop the game
+	if self.game_begin and self:check_if_all_players_waiting() then
+		self:stop_game()
+	end
+
+	self:update_clients(dt)
+
+	-- 3, 2, 1, GO
+	self:update_countdown_timer()
+
+	socket.sleep(0.01)
 end
 
 function Server:draw()
@@ -281,6 +295,15 @@ function Server:draw()
 	end
 
 	chat:draw()
+end
+
+function Server:update_clients(dt)
+	for sock, client in pairs(self.clients) do
+		client.timeout_timer = client.timeout_timer - dt
+		if client.timeout_timer < 0 then
+			self:kick_user(client.name, concat("%y",client.name," a été expulsé car le serveur ne reçevait plus de réponse \\(·.·)/"))
+		end
+	end
 end
 
 function Server:keypressed(key)
@@ -400,6 +423,8 @@ end
 function Server:stop()
 	self.running = false
 	print "Server stopped, thank you."
+	self:quit()
+	love.event.quit()
 end
 
 function Server:draw_clients()
@@ -453,19 +478,31 @@ function Server:draw_clients()
 		love.graphics.setColor(1,1,1)
 		
 		-- Draw game over/win
-		if client.game_over then
-			love.graphics.setColor(0,0,0, 0.7)
-			love.graphics.rectangle("fill", x, y, board_width, board_height)
-			love.graphics.setColor(1,1,1)
-			draw_centered_text("Perdu !", x,y, board_width, board_height)
-			love.graphics.draw(img.skull, x+board_width/2-16,y+board_height/2-48)
+		if client.game_over or client.is_win then
+			local text = ""
+			local icon = img.square
+			if client.game_over then
+				text = "Perdu!"
+				icon = img.skull
 
-		elseif client.is_win then
+			elseif client.is_win then
+				text = "Victoire"
+				icon = img.crown
+
+			end
+
+			local center_x, center_y = x+board_width/2, y+board_height/2
 			love.graphics.setColor(0,0,0, 0.7)
 			love.graphics.rectangle("fill", x, y, board_width, board_height)
 			love.graphics.setColor(1,1,1)
-			draw_centered_text("Victoire !", x,y, board_width, board_height)
-			love.graphics.draw(img.crown, x+board_width/2-16,y+board_height/2-48)
+			draw_centered_text(text, x,y, board_width, board_height)
+			love.graphics.draw(icon, center_x-16, center_y-48)
+			-- Time
+			local time = tostring(math.floor(self.max_timer - client.end_time))
+			local w = get_text_width(time) + 32+8
+			local time_x = math.floor(center_x-w/2)
+			love.graphics.draw(img.clock, time_x, center_y+32)
+			love.graphics.print(time, time_x + 32+8, center_y+32, 0, 0.8)
 		end
 
 		i=i+1
@@ -589,6 +626,28 @@ function Server:send_chat_message(msg, except)
 		if s ~= except then
 			udp:sendto("chat "..msg, client.ip, client.port)
 		end
+	end
+end
+
+function Server:sendto(msg, name)
+	local user = self:get_user_from_name(name)
+	udp:sendto("chat "..tostring(msg), user.ip, user.port)
+end
+
+function Server:kick_user(username, msg)
+	local user = self:get_user_from_name(username)
+	--if sock then   user = self.clients[sock]   end
+	msg = msg or concat("%y",username," a été renvoyé de la partie.")
+
+	if user then
+		self.number_of_clients = self.number_of_clients - 1
+		self:send_chat_message(msg, user.socket)
+		self:sendto("%yVous avez été renvoyé de la partie D:", username)
+		udp:sendto("kick 123", user.ip, user.port)
+
+		self.clients[user.socket] = nil
+	else
+		chat:new_msg("%rErreur: pas de joueur sous le nom \""..username.."\"")
 	end
 end
 

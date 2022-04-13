@@ -19,9 +19,10 @@ function Tile:init(board, ix, iy, x, y, val)
 	self.show_number = true
 	self.scale = scale
 	self.is_lighter = ((ix + iy)%2 == 0)
+	self.hidden_color = COL_HIDDEN
 end
 
-function Tile:draw(board, x, y, scale, tile_size, is_select)
+function Tile:draw(board, x, y, scale, tile_size, is_select, hidden_color)
 	self.show_number = false
 	scale = scale or 1
 
@@ -29,7 +30,7 @@ function Tile:draw(board, x, y, scale, tile_size, is_select)
 	local col = COL_REVEALED
 	-- Hidden when color
 	if self.is_hidden then 
-		col = COL_HIDDEN
+		col = self.hidden_color or COL_HIDDEN
 	end
 
 	-- Lighter color every 2 tiles
@@ -99,7 +100,7 @@ function Tile:reveal(play_sfx)
 		self.board.number_of_broken_tiles = self.board.number_of_broken_tiles + 1
 		-- Particles
 		--img, x, y, r, s, dx, dy, dr, ds, g, fx, fy, fr, fs	
-		self:particle({img.square, COL_HIDDEN}) 
+		self:particle({img.square, self.hidden_color}) 
 		
 		-- SFX
 		if play_sfx then

@@ -61,6 +61,8 @@ function Board:init(parent, seed, socketname, scale, is_centered)
 	}
 	self.bombs = {}
 
+	self.tile_color = COL_HIDDEN
+
 	-- Screenshake
 	self.shake = 0
 	self.shake_x = 0
@@ -462,6 +464,32 @@ function Board:item_earthquake(seed)
 			end 
 		
 		end 
+	end
+end
+
+function Board:set_tile_color(colorname)
+	local color_table = BOARD_COLORS
+	local col = color_table[colorname]
+	if not col then
+		local all_colors = concat_keys(color_table, " ")
+		return false, concat("%rErreur: couleur inconnue (\"",colorname,"\") (format: /color <",all_colors,">)")
+	end
+
+	self.tile_color = col
+	for ix=0, self.w-1 do
+		for iy=0, self.h-1 do
+			local tile = self:get_board(ix, iy)
+			tile.hidden_color = col
+		end
+	end
+	return true
+end
+
+function Board:for_every_tile(func)
+	for ix=0, self.w-1 do
+		for iy=0, self.h-1 do
+			func(self, self:get_board(ix,iy))
+		end
 	end
 end
 
