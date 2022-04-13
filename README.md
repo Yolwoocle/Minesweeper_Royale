@@ -1,7 +1,7 @@
 # Minesweeper Royale 
 Le jeu du démineur, mais c'est un battle royale.
 
-![demineur_royale_2022-04-13_09-00-29](https://user-images.githubusercontent.com/54135715/163164693-8584b92b-4050-49a7-8cb6-73e36a14e165.png)
+![demineur_royale_2022-04-13_09-00-29](https://user-images.githubusercontent.com/54135715/163165606-6c556729-2e74-43b7-82cd-dff0248dc457.png)
 ![demineur_royale_2022-04-13_09-01-11](https://user-images.githubusercontent.com/54135715/163164696-164ad5e9-4863-41dd-ae65-955200184d19.png)
 
 ## Comment mettre en place
