@@ -6,8 +6,8 @@ Le jeu du démineur, mais c'est un battle royale.
 
 ## Comment mettre en place
 ### Lancer le jeu
-Téléchargez le jeu ici: [TODO lien]()
-Dézippez, puis ouvrez le `.exe`.
+Téléchargez le jeu ici: [TODO lien]()  
+Dézippez, puis ouvrez le `.exe`.  
 
 ### Démarrer le serveur
 Démarrez une instance du jeu, puis appuyez sur `shift`+`f12` pour démarrer en **mode serveur**:
