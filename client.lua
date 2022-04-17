@@ -756,23 +756,14 @@ end
 
 function Client:set_name(name)
 	name = name or self:get_system_name()
+	print("oldname", name)
 	-- Remove the separator character (" ")
 	name = name:gsub(" ","_")
 	name = name:gsub("%%","-")
-	-- This is a non extaustive list
-	name = name:gsub("à","a")
-	name = name:gsub("ä","a")
-	name = name:gsub("â","a")
-	name = name:gsub("é","e")
-	name = name:gsub("è","e")
-	name = name:gsub("ë","e")
-	name = name:gsub("ï","i")
-	name = name:gsub("î","i")
-	name = name:gsub("ö","o")
-	name = name:gsub("ô","o")
-	name = name:gsub("ù","u")
-	name = name:gsub("ü","u")
-	name = name:gsub("û","u")
+	name = remove_accents(name) 
+	name = name:gsub("[^%w-_]","-")
+
+	print("newname",name)
 	-- Remove non-ASCII characters
 	nn = ""
 	for i=1, utf8.len(name) do
