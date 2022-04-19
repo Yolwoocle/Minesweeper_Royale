@@ -325,15 +325,21 @@ end
 
 function Chat:send_command(text)
 	local arguments = split_str(text, " ")
-	local cmd = arguments[1]
+	if not arguments then 
+		self:new_msg("%rCommande invalide")
+		return
+	end
+
+	local cmd_name = arguments[1]
 	table.remove(arguments, 1)
 	local parms = arguments
 	parms = parms or {}
 
 	-- Client
-	local cmd = self.commands[cmd]
+	local cmd = self.commands[cmd_name]
 	if not cmd then
-		self:new_msg("%rCommande inconnue:")
+		self:new_msg(concat("%rCommande inconnue: ",cmd_name))
+		return
 	end
 
 	local is_correct_type = (self.parent.type == cmd.type) or (cmd.type == "all")
