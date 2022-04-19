@@ -73,6 +73,20 @@ function Chat:init(parent)
 			self.parent:stop()
 		end),
 
+		["cowsay"] = self:new_cmd("client", function(self, parms) 
+			local text = table.concat(parms, " ")
+			local cowsay_msg = string.format([[
+ < %s >
+        \   ^__^
+         \  (oo)\_____
+             (__)\              )\/\
+                        ||----w |
+                        ||            ||
+]],text)
+			local cmd = string.format("chat %s", cowsay_msg)
+			self:send_command(cmd)
+		end),
+
 		-- Templates
 		["___"] = self:new_cmd("____", function(self, parms) 
 		end),
