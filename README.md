@@ -6,7 +6,7 @@ Le jeu du démineur, mais c'est un battle royale.
 
 ## Comment mettre en place
 ### Lancer le jeu
-Téléchargez le jeu ici: [TODO lien]()  
+Téléchargez le jeu ici: [MinesweeperRoyale_Exports](https://github.com/Yolwoocle/MinesweeperRoyale_Exports)  
 Dézippez, puis ouvrez le `.exe`.  
 
 ### Démarrer le serveur
