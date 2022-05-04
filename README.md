@@ -13,7 +13,7 @@ Dézippez, puis ouvrez le `.exe`.
 Démarrez une instance du jeu, puis appuyez sur `shift`+`f12` pour démarrer en **mode serveur**:
 ![demineur_royale_2022-04-13_12-57-19](https://user-images.githubusercontent.com/54135715/163166097-6592b19f-528b-44f4-a48d-0b84ed25a15c.png)
 
-Ensuite, toute nouvelle instance du jeu tentera de se connecter à ce serveur. Merci de noter que **les machines doivent être sur le même réseau**, ou sur la même machine.
+Ensuite, toute nouvelle instance du jeu tentera de se connecter à ce serveur. Merci de noter que **les instances doivent être sur le même réseau**, ou sur la même machine.
 
 > Si cela échoue, entrez `/connect <votre addresse ici>` dans le chat (ouvrir avec `T`) pour tenter une connection manuelle.
 
