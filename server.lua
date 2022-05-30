@@ -19,12 +19,14 @@ function Server:init()
 	print("----------------------")
 	print("Beginning server loop.")
 
-	self.interface = "*"--"0.0.0.0"--"*"
+	local comp_ip = socket.dns.toip(socket.dns.gethostname()) 
+	self.interface = comp_ip
 	self.port = 12345
 
+	notification(concat("Setting sock name: ", self.interface,",",self.port))
 	print(concat("Setting sock name: ", self.interface,",",self.port))
-	udp:settimeout(0)
-	udp:setsockname(self.interface, self.port)
+	assert(udp:settimeout(0))
+	assert(udp:setsockname(self.interface, self.port))
 
 	-- Clients
 	self.number_of_clients = 0
@@ -47,6 +49,30 @@ function Server:init()
 	-- Countdown (3,2,1,GO)
 	self.do_countdown = false
 	self.countdown_timer = 0
+end
+
+function Server:cmd_setup(parms)
+	--[[
+	print("parms", parms[1], parms[2], parms[3])
+	local address = parms[1]
+	local port = parms[2]
+	self.running = true
+	self.type = "server"
+
+	-- Server properties
+	self.name = "[SERVER]"
+	
+	print("----------------------")
+	print("Beginning server loop.")
+
+	self.interface = "*"--address
+	self.port = tonumber(port)
+
+	notification(concat("Setting sock name: ", self.interface,",",self.port))
+	print(concat("Setting sock name: ", self.interface,",",self.port))
+	assert(udp:settimeout(0))
+	assert(udp:setsockname(self.interface, self.port))
+	--]]
 end
 
 function Server:update(dt)

@@ -57,6 +57,11 @@ function Chat:init(parent)
 			self.parent:stop_game()
 		end),
 
+		["set"] = self:new_cmd("server", function(self, parms)
+			self.parent:send_chat_message(concat("%ySet address to:", parms))
+			self.parent:cmd_setup(parms)
+		end),
+
 		["help"] = self:new_cmd("client", function(self, parms)
 			self.parent.show_help = not self.parent.show_help	
 		end),
